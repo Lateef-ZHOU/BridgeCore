@@ -1,5 +1,13 @@
 # 验证记录
 
+## 2026-10-29：返回路径与双向排队销毁验证
+
+- run 直接返回 app.exec()，局部 Bridge 仍在函数返回前析构；Interfaces.h 删除未使用的 algorithm，补齐 std::move 的 utility 直接依赖。
+- 两型号均在 UDP → 串口及串口 → UDP 回调排队后销毁 Bridge；等待串口完成读帧，但不处理主线程事件，确认上行尚未发送。检查析构期间及销毁后处理事件均无新增 UDP 发送，串口也没有新增写入，两侧资源全部释放。
+- 线程切换、关闭顺序、50 ms 轮询及现有退出机制均未改，不新增状态或转发层。
+- ArchHFNL 固定依赖 Linux Release 增量构建通过，`-Wall -Wextra -Wpedantic -Werror` 无警告；CTest 3/3，共 79 项检查：56 项转发/生命周期、15 项 CLI、8 项进程检查。收发仍用 C API 替身，未进行实物或 ARM 验证。
+- 证据：远端 `~/.cache/bridge-fixed-20261029/build-queued-destruction.log`、`test-queued-destruction.log`；本地副本在 `build-linux-validation/`。
+
 ## 2026-10-29：转发所有权与串口规格整理
 
 - 串口 → UDP 按值捕获成帧器交出的自有 QByteArray，隐式共享保活；UDP → 串口保留对 Pcap 借用视图的深拷贝。未改变排队线程、发送线程、重连或关闭顺序。

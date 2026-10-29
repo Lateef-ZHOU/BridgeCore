@@ -26,9 +26,8 @@ int run(QCoreApplication &app, const SerialParams &serial, const PcapParams &udp
     std::signal(SIGINT, requestExit);
     std::signal(SIGTERM, requestExit);
     if (!bridge.start(serial, udp)) return 1;
-    const int result = app.exec();
     // Stack destruction synchronously closes both Handles before returning to the shell.
-    return result;
+    return app.exec();
 }
 }
 

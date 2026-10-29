@@ -60,4 +60,4 @@ UDP 一个数据报对应 Handle 一次 send；串口完整校验帧对应一个
 
 ## 验证
 
-`tests` 链接串口/Pcap 的 C API 替身，生产 Handle 和桥接逻辑不替换。覆盖两型号双向字节、半帧/粘包/坏帧、pcap 缓冲复用、主线程发送、销毁前在途回调、超长拒绝、ARP、CLI 与实际进程的 SIGINT/SIGTERM/首开失败。CLI 枚举读取系统信息，但测试不打开实物串口/网卡；不发送真实设备指令。实际结果见 [VALIDATION.md](VALIDATION.md)。
+`tests` 链接串口/Pcap 的 C API 替身，生产 Handle 和桥接逻辑不替换。覆盖两型号双向字节、半帧/粘包/坏帧、pcap 缓冲复用、主线程发送、销毁前在途回调、超长拒绝、ARP、CLI 与实际进程的 SIGINT/SIGTERM/首开失败。销毁测试让两个方向同时留有未交付回调，检查析构期间和销毁后处理事件都不再发送，且两侧资源已释放。CLI 枚举读取系统信息，但测试不打开实物串口/网卡；不发送真实设备指令。实际结果见 [VALIDATION.md](VALIDATION.md)。

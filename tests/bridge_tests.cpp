@@ -77,14 +77,21 @@ void transfer(const SerialParams &serial, const QByteArray &down, const QByteArr
         require(send.thread == QCoreApplication::instance()->thread(), "UDP sends on main thread");
         require(UDPDatagram(send.bytes).bodyView() == up, "one valid serial frame per UDP payload");
     }
-    // Queued forwarding must not outlive its bridge or run during synchronous teardown.
+    // Queue both directions without main-thread dispatch, then destroy their shared context.
+    const auto writes = FakeSerialPort::writes().size();
+    const auto sends = FakePcap::sent().size();
     const auto delivered = session->delivered.load();
     FakePcap::inject(session, inbound(p, down));
     until([&] { return session->delivered > delivered; }, false);
+    FakeSerialPort::enqueue(wire);
+    const auto queuedRead = FakeSerialPort::reads();
+    until([&] { return FakeSerialPort::reads() >= queuedRead + 2; }, false);
+    require(FakePcap::sent().size() == sends, "serial reply must remain queued before teardown");
     bridge.reset();
-    const auto writes = FakeSerialPort::writes().size();
+    require(FakePcap::sent().size() == sends, "teardown must not dispatch queued UDP sends");
     QCoreApplication::processEvents();
-    require(FakeSerialPort::writes().size() == writes, "queued forwarding removed with context");
+    require(FakeSerialPort::writes().size() == writes, "queued serial send removed with context");
+    require(FakePcap::sent().size() == sends, "queued UDP send removed with context");
     require(session->closed && FakeSerialPort::livePorts() == 0, "both sources stopped and released");
 }
 void limitAndArp()
