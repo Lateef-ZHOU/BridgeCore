@@ -21,19 +21,16 @@ namespace {
 template <typename Serial>
 int run(QCoreApplication &app, const SerialParams &serial, const PcapParams &udp, int maxPayload)
 {
-    // Block before starting workers so they inherit the mask; signalfd consumes process signals.
-    sigset_t signals, previousMask;
+    // Workers inherit this mask; keep it until process exit, including synchronous teardown.
+    sigset_t signals;
     sigemptyset(&signals);
     sigaddset(&signals, SIGINT);
     sigaddset(&signals, SIGTERM);
-    const int maskError = pthread_sigmask(SIG_BLOCK, &signals, &previousMask);
+    const int maskError = pthread_sigmask(SIG_BLOCK, &signals, nullptr);
     if (maskError != 0) {
         qCritical() << "Cannot configure exit signals:" << std::strerror(maskError);
         return 1;
     }
-    const auto restoreMask = qScopeGuard([&previousMask] {
-        (void)pthread_sigmask(SIG_SETMASK, &previousMask, nullptr);
-    });
     const int signalFd = signalfd(-1, &signals, SFD_NONBLOCK | SFD_CLOEXEC);
     if (signalFd < 0) {
         qCritical() << "Cannot create exit signal descriptor:" << std::strerror(errno);
@@ -50,11 +47,18 @@ int run(QCoreApplication &app, const SerialParams &serial, const PcapParams &udp
         if (count == static_cast<ssize_t>(sizeof(info))) app.quit();
         else if (count < 0 && errno == EAGAIN) return;
         else {
-            qCritical() << "Cannot read exit signal descriptor";
+            if (count < 0) {
+                const int error = errno;
+                qCritical().noquote() << "Cannot read exit signal descriptor: errno="
+                                     + QString::number(error) << std::strerror(error);
+            }
+            else
+                qCritical() << "Unexpected exit signal descriptor read length:" << count
+                            << "bytes; expected" << sizeof(info);
             app.exit(1);
         }
     });
-    // Destroy the bridge before notifier/fd/mask cleanup; no event dispatch during its stop/wait.
+    // Destroy the bridge before notifier/fd cleanup; no event dispatch during its stop/wait.
     Bridge<Serial> bridge(maxPayload);
     if (!bridge.start(serial, udp)) return 1;
     // Stack destruction synchronously closes both Handles before returning to the shell.

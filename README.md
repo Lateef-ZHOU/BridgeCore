@@ -41,7 +41,7 @@ ctest --test-dir BridgeCore/build --output-on-failure
 
 前台按 Ctrl+C 停止；后台可 `kill -TERM <PID>`，systemd 可直接用 SIGTERM 停止。Linux `signalfd` 将这两个信号交给 `QSocketNotifier`，由主线程收到可读事件后退出循环，无轮询定时器或退出标记。启动 worker 前设置屏蔽，worker 继承，因此信号由文件描述符统一接收；循环前收到的信号也可保留到循环开始处理。任一 worker 结束仍通知主线程退出。
 
-事件循环返回后先同步关闭并等待两个 Handle，再销毁 notifier、关闭信号描述符、恢复原信号屏蔽。正常信号退出码 0；启动/连接或信号接入失败为 1；参数错误为 2（Qt 自带选项解析错误可能为 1）。后续 I/O 失败仍由 Handle 自动重连，不另建重试状态机。
+事件循环返回后先同步关闭并等待两个 Handle，再销毁 notifier、关闭信号描述符。SIGINT/SIGTERM 的屏蔽保持到进程结束，无需保存和恢复旧屏蔽，防止尚未读取的退出信号在关闭尾声触发默认终止。正常信号退出码 0；启动/连接或信号接入失败为 1；参数错误为 2（Qt 自带选项解析错误可能为 1）。读取信号描述符失败时记录 errno 和系统错误文字，异常长度则记录实际与预期字节数。后续 I/O 失败仍由 Handle 自动重连，不另建重试状态机。
 
 ## UDP 载荷
 

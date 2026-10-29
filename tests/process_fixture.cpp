@@ -40,10 +40,32 @@ extern "C" int __wrap_signalfd(int fd, const sigset_t *mask, int flags)
             // Production has blocked signals, but has not created its notifier or started workers/exec.
             const int signal = early[0] == 'I' ? SIGINT : SIGTERM;
             if (kill(getpid(), signal) != 0) std::abort();
+            if (early[0] == 'B') {
+                if (kill(getpid(), SIGINT) != 0) std::abort();
+                sigset_t pending;
+                if (sigpending(&pending) != 0 || sigismember(&pending, SIGINT) != 1
+                    || sigismember(&pending, SIGTERM) != 1) std::abort();
+                std::fprintf(stderr, "TEST: SIGINT and SIGTERM pending before exec\n");
+            }
             std::fprintf(stderr, "TEST: exit signal queued before exec\n");
         }
     }
     return exitSignalFd;
+}
+
+extern "C" ssize_t __real_read(int fd, void *buffer, size_t count);
+extern "C" ssize_t __wrap_read(int fd, void *buffer, size_t count)
+{
+    if (fd == exitSignalFd) {
+        if (const char *mode = std::getenv("BRIDGE_TEST_SIGNAL_READ")) {
+            if (mode[0] == 'E') {
+                errno = EBADF;
+                return -1;
+            }
+            return static_cast<ssize_t>(sizeof(signalfd_siginfo)) - 1;
+        }
+    }
+    return __real_read(fd, buffer, count);
 }
 Q_COREAPP_STARTUP_FUNCTION(initializeFixture)
 }

@@ -1,5 +1,13 @@
 # 验证记录
 
+## 2026-10-29：退出尾声与读取诊断整理
+
+- 删除 previousMask 和 restoreMask，不再保存、恢复旧信号屏蔽；SIGINT/SIGTERM 的屏蔽保持到进程结束，避免另一个尚未读取的退出信号在关闭尾声触发默认终止。Bridge 关闭、notifier 销毁和 fd 关闭顺序保持，双向转发与 worker finished 退出接线未改，无新增业务状态或转发层。
+- 信号描述符读取失败时记录 errno 数值和系统错误文字，异常长度时记录实际/预期字节数；原 EINTR 重试和 EAGAIN 返回逻辑保持。
+- 两型号分别在事件循环前注入 SIGINT 和 SIGTERM，并先确认二者同时处于 pending；程序正常返回 0，传输资源和信号描述符均释放。测试链接入口额外注入 EBADF 与短读，验证返回 1 并记录具体诊断；生产代码不提供测试开关。
+- ArchHFNL Linux Release 增量构建无警告；CTest 3/3，共 91 项检查：56 项转发/生命周期、15 项 CLI、20 项进程检查。保留单信号、运行中退出、通知创建失败和两侧首开失败验证。未操作真实设备，未进行 ARM 验证。
+- 证据：远端 `~/.cache/bridge-fixed-20261029/build-pending-signals.log`、`test-pending-signals.log`；本地副本在 `build-linux-validation/`。下方“恢复原信号屏蔽”的记录属于此前版本，现已由本轮替代。
+
 ## 2026-10-29：退出信号改为事件通知
 
 - 删除 50 ms QTimer、全局退出标记和信号处理函数；Linux signalfd 配合 QSocketNotifier 在主线程处理 SIGINT/SIGTERM。屏蔽在创建 worker 前设置，由新线程继承；循环前到达的信号由内核保留至 notifier 处理。

@@ -24,12 +24,23 @@ for device in ("whlsDevice", "sqafDevice"):
         out, err = proc.communicate(timeout=4)
         assert proc.returncode == 0, (device, sig, out, err)
         assert "all transport resources released" in err
-    for early in ("INT", "TERM"):
+    for early in ("INT", "TERM", "BOTH"):
         result = subprocess.run([*base, "--device", device],
                                 env={**os.environ, "BRIDGE_TEST_EARLY_SIGNAL": early},
                                 capture_output=True, text=True, timeout=4)
         assert result.returncode == 0, (device, early, result.stderr)
         assert "exit signal queued before exec" in result.stderr
+        if early == "BOTH":
+            assert "SIGINT and SIGTERM pending before exec" in result.stderr
+        assert "all transport resources released" in result.stderr
+    for mode, message in (("ERROR", "errno=9"),
+                          ("SHORT", "Unexpected exit signal descriptor read length: 127 bytes; expected 128")):
+        result = subprocess.run([*base, "--device", device],
+                                env={**os.environ, "BRIDGE_TEST_EARLY_SIGNAL": "INT",
+                                     "BRIDGE_TEST_SIGNAL_READ": mode},
+                                capture_output=True, text=True, timeout=4)
+        assert result.returncode == 1, (device, mode, result.stderr)
+        assert message in result.stderr, (device, mode, result.stderr)
         assert "all transport resources released" in result.stderr
     result = subprocess.run([*base, "--device", device],
                             env={**os.environ, "BRIDGE_TEST_SIGNALFD_FAIL": "1"},
@@ -42,4 +53,4 @@ for device in ("whlsDevice", "sqafDevice"):
                                 capture_output=True, text=True, timeout=4)
         assert result.returncode == 1, (device, failure, result.stderr)
         assert "all transport resources released" in result.stderr
-print("14 process checks passed: both devices, SIGINT/SIGTERM before/during exec, signal setup and initial open failure")
+print("20 process checks passed: both devices, single/combined exit signals, read diagnostics, signal setup and initial open failure")

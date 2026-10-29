@@ -19,6 +19,6 @@ target_include_directories(bridge-process-fixture PRIVATE
     "${lidar_handle_core_SOURCE_DIR}/tests/pcap")
 target_link_libraries(bridge-process-fixture PRIVATE bridge_protocols)
 target_compile_options(bridge-process-fixture PRIVATE -Wall -Wextra -Wpedantic -Werror)
-target_link_options(bridge-process-fixture PRIVATE -Wl,--wrap=signalfd)
+target_link_options(bridge-process-fixture PRIVATE -Wl,--wrap=signalfd -Wl,--wrap=read)
 add_test(NAME process-lifecycle COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/process_tests.py" "$<TARGET_FILE:bridge-process-fixture>")
 set_tests_properties(process-lifecycle PROPERTIES TIMEOUT 30 SKIP_RETURN_CODE 77)
