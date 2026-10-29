@@ -39,7 +39,9 @@ ctest --test-dir BridgeCore/build --output-on-failure
 
 `Bridge::start()` 返回 true 只表示两侧接受了异步启动请求，不表示串口或 UDP 已连接就绪。打开结果由 Handle 后续报告；若第二侧拒绝启动，调用者返回并析构 Bridge，关闭先前已接受启动的那一侧。此处不增加回滚状态或另一条关闭链。
 
-前台按 Ctrl+C 停止；后台可 `kill -TERM <PID>`，systemd 可直接用 SIGTERM 停止。信号经主线程事件循环处理，然后同步关闭并等待两个 Handle。正常信号退出码 0；启动/连接失败为 1；参数错误为 2（Qt 自带选项解析错误可能为 1）。后续 I/O 失败仍由 Handle 自动重连，不另建重试状态机。
+前台按 Ctrl+C 停止；后台可 `kill -TERM <PID>`，systemd 可直接用 SIGTERM 停止。Linux `signalfd` 将这两个信号交给 `QSocketNotifier`，由主线程收到可读事件后退出循环，无轮询定时器或退出标记。启动 worker 前设置屏蔽，worker 继承，因此信号由文件描述符统一接收；循环前收到的信号也可保留到循环开始处理。任一 worker 结束仍通知主线程退出。
+
+事件循环返回后先同步关闭并等待两个 Handle，再销毁 notifier、关闭信号描述符、恢复原信号屏蔽。正常信号退出码 0；启动/连接或信号接入失败为 1；参数错误为 2（Qt 自带选项解析错误可能为 1）。后续 I/O 失败仍由 Handle 自动重连，不另建重试状态机。
 
 ## UDP 载荷
 

@@ -1,5 +1,13 @@
 # 验证记录
 
+## 2026-10-29：退出信号改为事件通知
+
+- 删除 50 ms QTimer、全局退出标记和信号处理函数；Linux signalfd 配合 QSocketNotifier 在主线程处理 SIGINT/SIGTERM。屏蔽在创建 worker 前设置，由新线程继承；循环前到达的信号由内核保留至 notifier 处理。
+- 未修改 Bridge 双向转发、任一 worker finished 触发退出及串口先于 UDP 的同步关闭顺序。通知资源为 run 的局部资源：Bridge 先析构，再销毁 notifier、关闭 fd、恢复原信号屏蔽；未新增业务状态或转发层。
+- 增加实际进程测试：两型号分别在 exec 前注入 SIGINT/SIGTERM，正常退出并释放资源；注入 signalfd 创建失败，明确返回失败。原运行中信号退出与两侧首开失败继续通过；测试同时检查信号描述符已关闭。信号故障注入只在测试链接入口实现，不在生产代码中设置测试开关。
+- ArchHFNL Linux Release 增量构建无警告；CTest 3/3，共 85 项检查：56 项转发/生命周期、15 项 CLI、14 项进程检查。初次验证因主机 Qt 日志未进入捕获的 stderr 导致故障文案断言失败，测试指定 QT_FORCE_STDERR_LOGGING 后通过；生产日志策略未改。未进行实物或 ARM 验证。
+- 证据：远端 `~/.cache/bridge-fixed-20261029/build-signal-notifier.log`、`test-signal-notifier.log`；本地副本在 `build-linux-validation/`。下方保留的 50 ms 轮询记录是此前版本的验证，不再描述当前实现。
+
 ## 2026-10-29：返回路径与双向排队销毁验证
 
 - run 直接返回 app.exec()，局部 Bridge 仍在函数返回前析构；Interfaces.h 删除未使用的 algorithm，补齐 std::move 的 utility 直接依赖。

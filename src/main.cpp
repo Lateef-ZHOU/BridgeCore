@@ -1,9 +1,16 @@
 #include <algorithm>
+#include <cerrno>
 #include <csignal>
+#include <cstring>
+#include <pthread.h>
+#include <sys/signalfd.h>
+#include <unistd.h>
 #include <QCommandLineParser>
 #include <QCoreApplication>
+#include <QDebug>
+#include <QScopeGuard>
+#include <QSocketNotifier>
 #include <QTextStream>
-#include <QTimer>
 #include <Device/Handle/PelcoDHandle.h>
 #include <Device/GMB/Sqaf/SqafConfig.h>
 #include <Rayshining/LaserHandle.h>
@@ -11,20 +18,44 @@
 #include "Interfaces.h"
 
 namespace {
-volatile std::sig_atomic_t interrupted = 0;
-extern "C" void requestExit(int) { interrupted = 1; }
-
 template <typename Serial>
 int run(QCoreApplication &app, const SerialParams &serial, const PcapParams &udp, int maxPayload)
 {
-    Bridge<Serial> bridge(maxPayload);
-    QTimer signals;
-    QObject::connect(&signals, &QTimer::timeout, &app, [&app] {
-        if (interrupted) app.quit();
+    // Block before starting workers so they inherit the mask; signalfd consumes process signals.
+    sigset_t signals, previousMask;
+    sigemptyset(&signals);
+    sigaddset(&signals, SIGINT);
+    sigaddset(&signals, SIGTERM);
+    const int maskError = pthread_sigmask(SIG_BLOCK, &signals, &previousMask);
+    if (maskError != 0) {
+        qCritical() << "Cannot configure exit signals:" << std::strerror(maskError);
+        return 1;
+    }
+    const auto restoreMask = qScopeGuard([&previousMask] {
+        (void)pthread_sigmask(SIG_SETMASK, &previousMask, nullptr);
     });
-    signals.start(50);
-    std::signal(SIGINT, requestExit);
-    std::signal(SIGTERM, requestExit);
+    const int signalFd = signalfd(-1, &signals, SFD_NONBLOCK | SFD_CLOEXEC);
+    if (signalFd < 0) {
+        qCritical() << "Cannot create exit signal descriptor:" << std::strerror(errno);
+        return 1;
+    }
+    const auto closeSignal = qScopeGuard([signalFd] { close(signalFd); });
+    QSocketNotifier notifier(signalFd, QSocketNotifier::Read);
+    QObject::connect(&notifier, &QSocketNotifier::activated, &app, [signalFd, &app] {
+        signalfd_siginfo info{};
+        ssize_t count;
+        do {
+            count = read(signalFd, &info, sizeof(info));
+        } while (count < 0 && errno == EINTR);
+        if (count == static_cast<ssize_t>(sizeof(info))) app.quit();
+        else if (count < 0 && errno == EAGAIN) return;
+        else {
+            qCritical() << "Cannot read exit signal descriptor";
+            app.exit(1);
+        }
+    });
+    // Destroy the bridge before notifier/fd/mask cleanup; no event dispatch during its stop/wait.
+    Bridge<Serial> bridge(maxPayload);
     if (!bridge.start(serial, udp)) return 1;
     // Stack destruction synchronously closes both Handles before returning to the shell.
     return app.exec();
