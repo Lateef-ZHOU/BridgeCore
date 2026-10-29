@@ -68,8 +68,16 @@ int main(int argc, char **argv)
         for (const auto &option : runOptions)
             if (parser.isSet(option)) return reject("List commands do not accept run options");
         QTextStream output(stdout);
-        if (parser.isSet("list-serialdevice"))
-            output << "sqafDevice\tPelco-D\t9600 8N1\nwhlsDevice\tWHLS\t115200 8N1\n";
+        if (parser.isSet("list-serialdevice")) {
+            const auto describe = [&output](const char *device, const char *protocol, const SerialParams &params) {
+                output << device << '\t' << protocol << '\t' << params.baudRate
+                       << " baud, data=" << toString(params.dataBits)
+                       << ", parity=" << toString(params.parity)
+                       << ", stop=" << toString(params.stopBits) << '\n';
+            };
+            describe("sqafDevice", "Pelco-D", SqafConfig::serialParameters({}));
+            describe("whlsDevice", "WHLS", Rayshining::LaserHandle::parameters({}));
+        }
         else if (parser.isSet("list-serialport"))
             for (const auto &port : availablePorts()) output << port.portName << '\t' << port.description << '\n';
         else

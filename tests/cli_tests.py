@@ -9,7 +9,9 @@ def check(args, status, fragment):
     assert fragment in result.stdout + result.stderr, (args, result.stdout, result.stderr)
 
 check(["--help"], 0, "--srcPort")
-check(["--list-serialdevice"], 0, "whlsDevice")
+check(["--list-serialdevice"], 0,
+      "sqafDevice\tPelco-D\t9600 baud, data=8, parity=None, stop=1\n"
+      "whlsDevice\tWHLS\t115200 baud, data=8, parity=None, stop=1\n")
 check(["--list-serialport"], 0, "")
 check(["--list-iface"], 0, "")
 check([], 2, "Expected run")

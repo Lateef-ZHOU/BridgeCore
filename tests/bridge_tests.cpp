@@ -67,7 +67,11 @@ void transfer(const SerialParams &serial, const QByteArray &down, const QByteArr
     until([&] { return FakeSerialPort::reads() > reads; });
     require(FakePcap::sent().empty(), "partial serial frame not forwarded");
     auto bad = wire; bad[bad.size() - 2] ^= 1;
+    const auto beforeCompleteRead = FakeSerialPort::reads();
     FakeSerialPort::enqueue(wire.sliced(3) + bad + wire);
+    // Let the serial read/feed finish and destroy its local frames before main-thread delivery.
+    until([&] { return FakeSerialPort::reads() >= beforeCompleteRead + 2; }, false);
+    require(FakePcap::sent().empty(), "serial worker must only queue UDP forwarding");
     until([] { return FakePcap::sent().size() == 2; });
     for (const auto &send : FakePcap::sent()) {
         require(send.thread == QCoreApplication::instance()->thread(), "UDP sends on main thread");

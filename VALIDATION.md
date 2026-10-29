@@ -1,5 +1,13 @@
 # 验证记录
 
+## 2026-10-29：转发所有权与串口规格整理
+
+- 串口 → UDP 按值捕获成帧器交出的自有 QByteArray，隐式共享保活；UDP → 串口保留对 Pcap 借用视图的深拷贝。未改变排队线程、发送线程、重连或关闭顺序。
+- 设备列表从 SqafConfig::serialParameters / LaserHandle::parameters 取得规格，与连接共用构参。补清 start 的 true 只代表接受异步启动请求，并不代表连接完成。
+- 在上述固定依赖的 Linux Release 构建目录增量构建通过，`-Wall -Wextra -Wpedantic -Werror` 无警告。CTest 3/3，共 71 项检查：48 项转发/生命周期、15 项 CLI、8 项进程验证。
+- 加强串口投递测试：暂停主线程事件处理，等串口读帧结束后再投递，验证局部帧释放后两型号仍交付正确字节；保留 Pcap 缓冲复用、主线程发送、队列销毁、首开失败和 SIGINT/SIGTERM 退出验证。CLI 检查两型号完整串口规格，生产枚举输出与预期一致。
+- 证据：远端 `~/.cache/bridge-fixed-20261029/build-copy-config.log`、`test-copy-config.log`；本地副本在 `build-linux-validation/`。收发使用 C API 替身，未操作真实硬件，未进行 ARM 验证。
+
 ## 2026-10-29：Linux 首版桥接器
 
 - ArchHFNL，Linux x86_64 / GCC 16.2.1 / Qt 6.12.0 / libserialport 0.1.2 / libpcap 1.11.0；Release `-Wall -Wextra -Wpedantic -Werror` 构建通过。动态依赖检查只有 Qt Core，没有 QML、Quick 或 DeviceCore。

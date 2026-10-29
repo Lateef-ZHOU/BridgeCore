@@ -30,6 +30,8 @@ public:
         serial_.stop();
         udp_.stop();
     }
+    // True means both asynchronous start requests were accepted, not that either side is ready.
+    // A rejection does not roll back an accepted first request; the caller destroys this bridge.
     [[nodiscard]] bool start(const SerialParams &serial, const PcapParams &udp)
     {
         return udp_.start(udp) && serial_.start(serial);
@@ -49,8 +51,9 @@ private:
     static DataCallback makeSerialInput(Bridge *self)
     {
         return [self](const QByteArray &bytes, RxTime) {
+            // The supported serial framers deliver owning arrays; retain their shared storage.
             QMetaObject::invokeMethod(self,
-                [self, owned = QByteArray(bytes.constData(), bytes.size())] {
+                [self, owned = bytes] {
                     if (owned.size() > self->maxUdpPayload_) {
                         qWarning() << "Serial payload exceeds interface UDP limit:" << owned.size()
                                    << ">" << self->maxUdpPayload_ << "bytes; dropped";
