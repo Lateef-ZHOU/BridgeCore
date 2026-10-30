@@ -1,4 +1,5 @@
 import os
+import errno
 import signal
 import subprocess
 import sys
@@ -15,6 +16,30 @@ if not src:
     sys.exit(77)
 base = [exe, "run", "--serialport", "/test-only", "--src", src,
         "--srcPort", "2000", "--dst", "192.0.2.2", "--dstPort", "2001"]
+for failure, message, error in (
+        ("BRIDGE_TEST_GETIFADDRS_FAIL", "Cannot enumerate local interface addresses (getifaddrs)", errno.ENOMEM),
+        ("BRIDGE_TEST_SOCKET_FAIL", "Cannot create interface MTU query socket", errno.EMFILE),
+        ("BRIDGE_TEST_MTU_FAIL", "Cannot query MTU for", errno.ENODEV),
+        ("BRIDGE_TEST_INET_NTOP_FAIL", "Cannot format IPv4 address for", errno.ENOSPC)):
+    env = {**os.environ, failure: "1"}
+    result = subprocess.run([exe, "--list-iface"], env=env, capture_output=True, text=True, timeout=4)
+    assert result.returncode == 0, (failure, result.stderr)
+    assert message in result.stderr, (failure, result.stderr)
+    assert f"errno={error}" in result.stderr and os.strerror(error) in result.stderr
+    if failure == "BRIDGE_TEST_GETIFADDRS_FAIL":
+        assert not result.stdout
+    elif failure in ("BRIDGE_TEST_SOCKET_FAIL", "BRIDGE_TEST_MTU_FAIL"):
+        assert src in result.stdout
+        assert all(line.endswith("MTU=0") for line in result.stdout.splitlines())
+    else:
+        assert result.stdout and all(not line.split("\t")[1] for line in result.stdout.splitlines())
+    assert "all transport resources released" in result.stderr
+    # Existing run validation still rejects incomplete interface information, without starting workers.
+    result = subprocess.run([*base, "--device", "whlsDevice"], env=env,
+                            capture_output=True, text=True, timeout=4)
+    assert result.returncode == 2, (failure, result.stderr)
+    assert message in result.stderr and "--src must be assigned" in result.stderr
+    assert "all transport resources released" in result.stderr
 for device in ("whlsDevice", "sqafDevice"):
     for sig in (signal.SIGINT, signal.SIGTERM):
         proc = subprocess.Popen([*base, "--device", device], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -32,6 +57,18 @@ for device in ("whlsDevice", "sqafDevice"):
         assert "exit signal queued before exec" in result.stderr
         if early == "BOTH":
             assert "SIGINT and SIGTERM pending before exec" in result.stderr
+        assert "all transport resources released" in result.stderr
+    for mode in ("EINTR", "EAGAIN"):
+        result = subprocess.run([*base, "--device", device],
+                                env={**os.environ, "BRIDGE_TEST_EARLY_SIGNAL": "INT",
+                                     "BRIDGE_TEST_SIGNAL_READ": mode},
+                                capture_output=True, text=True, timeout=4)
+        assert result.returncode == 0, (device, mode, result.stderr)
+        assert f"injected {mode}" in result.stderr
+        assert f"signal read recovered after {mode}" in result.stderr
+        if mode == "EAGAIN":
+            assert "event loop resumed after EAGAIN" in result.stderr
+        assert "Cannot read exit signal descriptor" not in result.stderr
         assert "all transport resources released" in result.stderr
     for mode, message in (("ERROR", "errno=9"),
                           ("SHORT", "Unexpected exit signal descriptor read length: 127 bytes; expected 128")):
@@ -53,4 +90,4 @@ for device in ("whlsDevice", "sqafDevice"):
                                 capture_output=True, text=True, timeout=4)
         assert result.returncode == 1, (device, failure, result.stderr)
         assert "all transport resources released" in result.stderr
-print("20 process checks passed: both devices, single/combined exit signals, read diagnostics, signal setup and initial open failure")
+print("32 process checks passed: interface diagnostics and unchanged returns; both devices, exit signals, read recovery, signal setup and initial open failure")

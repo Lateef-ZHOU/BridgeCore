@@ -1,5 +1,13 @@
 # 验证记录
 
+## 2026-10-30：网卡诊断与信号读取恢复验证
+
+- 本地地址枚举、MTU 查询 socket 创建、IPv4 文本转换和 MTU 读取失败时记录操作、errno 数值及系统错误文字，单接口失败附接口名称；名称超出 MTU 查询结构限制也明确记录。原空列表、缺失地址和 MTU=0 返回方式保持，不改变启动校验。
+- 通过现有进程测试链接入口注入上述四类系统调用失败，分别检查列表命令和 run 的具体诊断、原返回码与资源释放，共新增 8 项检查。未修改 HandleCore 或其他依赖。
+- 两种串口型号分别注入一次 EINTR 和 EAGAIN：EINTR 保留待读信号并检查当前回调内完成重试；EAGAIN 先消耗旧信号，再通过主线程排队动作发送新的 SIGTERM，确认返回事件循环继续等待并正常退出。故障控制状态仅存在于测试替身，生产信号处理代码未改。
+- ArchHFNL Linux Release 增量构建通过，`-Wall -Wextra -Wpedantic -Werror` 无警告；CTest 3/3，共 103 项检查：56 项转发/生命周期、15 项 CLI、32 项进程检查。未操作真实串口或网卡收发，未进行 ARM 验证。
+- 双向转发、worker finished 退出、信号屏蔽及关闭顺序保持。证据：远端 `~/.cache/bridge-fixed-20261029/build-interface-signal-recovery.log`、`test-interface-signal-recovery.log`；本地副本在 `build-linux-validation/`。
+
 ## 2026-10-29：退出尾声与读取诊断整理
 
 - 删除 previousMask 和 restoreMask，不再保存、恢复旧信号屏蔽；SIGINT/SIGTERM 的屏蔽保持到进程结束，避免另一个尚未读取的退出信号在关闭尾声触发默认终止。Bridge 关闭、notifier 销毁和 fd 关闭顺序保持，双向转发与 worker finished 退出接线未改，无新增业务状态或转发层。
