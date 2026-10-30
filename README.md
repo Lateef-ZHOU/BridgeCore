@@ -16,7 +16,7 @@ cmake --build BridgeCore/build -j
 ctest --test-dir BridgeCore/build --output-on-failure
 ```
 
-运行所需动态库由系统提供。使用自建 libserialport 时，配置 `PKG_CONFIG_PATH`，并确保运行时能找到该动态库。当前验证平台为 Linux x86_64；源代码没有限定 x86 指令，但 ARM 交叉编译和实机尚未验证。仓库许可证和公开发布尚未确定；依赖各自许可保持不变。
+运行所需动态库由系统提供。使用自建 libserialport 时，配置 `PKG_CONFIG_PATH`，并确保运行时能找到该动态库。已完成 Linux x86_64 验证及 PetaLinux ARM64 部署，三个枚举命令和激光器真实串口/UDP 查询通过；型号范围及证据见 VALIDATION。仓库许可证和公开发布尚未确定；依赖各自许可保持不变。
 
 ## 查询与启动
 
@@ -58,7 +58,7 @@ UDP 一个数据报对应 Handle 一次 send；串口完整校验帧对应一个
 
 激光器地址和长度保持大端，数据区不改字节序。LaserHandle 为下行补 WHLS、CRC16 和 0x55；上行检查后移除这层封套。**不要向 UDP 发送完整 WHLS 串口帧**。视强下行由 PelcoDHandle 补帧头、固定设备地址和校验和，上行接口本轮未改。
 
-桥接器不替客户端理解查询、启动、停止等业务。Windows 上位机后续需要 UDP 接入适配，不能直接把完整串口报文送给这个主体接口；本轮未替换其现有直连串口页面。
+桥接器不替客户端理解查询、启动、停止等业务。Windows 上位机已提供 LaserUdpModule，与直连串口版本共享解析和业务。它向桥接器发送主体，不发送完整串口报文；PetaLinux 服务部署见 [部署说明](deploy/petalinux/README.md)。
 
 边界沿用现有 Pcap：普通 Ethernet/IPv4，不处理 VLAN、非以太网链路头或 IP 分片。上行主体超过接口 MTU−28 或 UDP 上限时记日志并丢弃，不截断、不添加私有分片协议。首次 ARP 未完成时 Pcap 只保留最新待发包；断连、退出和 UDP 网络本身均不提供可靠交付保证，不新增排空或离线缓存。
 

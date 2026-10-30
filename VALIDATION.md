@@ -1,5 +1,15 @@
 # 验证记录
 
+## 2026-10-30：ARM 激光器桥接服务与 Windows UDP 实测
+
+- 复用前轮已安装的 ARM64 bridge：SHA256 6e799f2160b606d8b2a6b02265e781a27655406496784422870cf8e5cde68c39，二进制未改。板卡内核 5.4.0-xilinx-v2020.1、PID 1 为 SysVinit，使用 SysV 启停脚本，未套用 systemd。locale 已由前轮系统镜像设置为 C.UTF-8，服务继续读取 /etc/default/locale。
+- 用户拔除温控，剩余 USB 1-1.4 为激光器，当前 /dev/ttyUSB0；配置固定该 by-path，启动解析为当时实际 tty 名。不开其他串口，不改相机或温控。相同无 SN 芯片只能按物理插口区分，不宣称设备换口后自动识别。
+- 板端 192.168.1.11:55100 ↔ Windows 192.168.1.102:55100。Windows 生产 LaserUdpModule / PcapHandle 真实链路自动取得脉宽四档、型号 1550-ACI-MP、SN 15500300MN260011 和连续测量；关闭停表/清空通过。测试只查询及既有断开关光，不发送出光。默认 CI 仍用替身。
+- 服务 start 重复调用不创建第二实例，stop 经 SIGTERM 等待既有同步关闭，重复 stop 成功，重新 start/status 通过；最终运行 PID 7856（时点记录）。原 cdl33-service 仍 ready PID 771。没有引入重启循环、业务查询或强杀兜底。
+- 离线系统镜像只添加 init.d 和 rc5/rc0/rc1/rc6 的五个符号链接；内核、设备树及所有原路径/元数据逐项未变。root 镜像保留旧文件与元数据，仅增加服务/配置及目录。写 SD 前保存四个原文件和校验，替换后 SHA256 校验通过；BOOT.BIN/boot.scr/bridge 二进制原哈希保持。备份在 SD 的 codex_laser_service_backup_20261030，内附 RESTORE.txt；未触碰 eMMC 科学数据。
+- 新 image.ub SHA256：8cfca162a0374edcc5867c547e56d0fec762f3863f204ce91896cb4ede11e9e2；root-home.tar.gz：08696ae0534b68c57cecd0f73fcf3c764001b8bcf26fcef044ebb145407a552c。启动项持久化已检查，本轮未重启，不宣称重启实测通过。
+- 证据：build-board-audit-20261030/laser-service-20261030/ 下的 install.log、output/verification.json、root-verification.json 及新旧镜像；Windows RayshiningDevice/build/live-udp.log。mkimage 沿用旧 FIT 的 unit-address 命名警告，未增加签名或改变 FIT 布局。无 C++ 变更，本轮不重复之前 103 项替身测试。
+
 ## 2026-10-30：网卡诊断与信号读取恢复验证
 
 - 本地地址枚举、MTU 查询 socket 创建、IPv4 文本转换和 MTU 读取失败时记录操作、errno 数值及系统错误文字，单接口失败附接口名称；名称超出 MTU 查询结构限制也明确记录。原空列表、缺失地址和 MTU=0 返回方式保持，不改变启动校验。

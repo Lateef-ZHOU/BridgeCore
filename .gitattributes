@@ -1,0 +1,2 @@
+deploy/petalinux/laser-bridge text eol=lf
+deploy/petalinux/laser.conf text eol=lf

@@ -1,0 +1,55 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          laser-bridge
+# Required-Start:    $network
+# Required-Stop:     $network
+# Default-Start:     5
+# Default-Stop:      0 1 6
+# Short-Description: WHLS serial to Ethernet UDP bridge
+### END INIT INFO
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+export PATH
+[ ! -r /etc/default/locale ] || { . /etc/default/locale; export LANG; }
+APP=/root/apps/bridge/bin/bridge
+CONFIG=/root/apps/bridge/etc/laser.conf
+PIDFILE=/run/laser-bridge.pid
+LOG=/run/laser-bridge.log
+running() {
+    [ -r "$PIDFILE" ] || return 1
+    PID=$(cat "$PIDFILE")
+    case "$PID" in ''|*[!0-9]*) return 1;; esac
+    [ "$(readlink "/proc/$PID/exe" 2>/dev/null)" = "$APP" ] && kill -0 "$PID" 2>/dev/null
+}
+start() {
+    if running; then echo "laser-bridge running pid=$PID"; return 0; fi
+    [ -x "$APP" ] && [ -r "$CONFIG" ] || { echo "Missing bridge or configuration" >&2; return 1; }
+    . "$CONFIG"
+    [ -c "$SERIAL_PORT" ] || { echo "Laser serial port missing: $SERIAL_PORT" >&2; return 1; }
+    # Resolve only the configured physical socket. Do not probe other serial devices.
+    SERIAL_DEVICE=$(readlink -f "$SERIAL_PORT") || return 1
+    nohup "$APP" run --device whlsDevice --serialport "$SERIAL_DEVICE" \
+        --src "$SOURCE_IP" --srcPort "$SOURCE_PORT" --dst "$DESTINATION_IP" --dstPort "$DESTINATION_PORT" \
+        </dev/null >>"$LOG" 2>&1 &
+    echo $! >"$PIDFILE"
+    sleep 1
+    if running; then echo "laser-bridge started pid=$PID; log=$LOG"; return 0; fi
+    echo "laser-bridge exited during startup; see $LOG" >&2
+    rm -f "$PIDFILE"
+    return 1
+}
+stop() {
+    if ! running; then rm -f "$PIDFILE"; echo "laser-bridge stopped"; return 0; fi
+    kill -TERM "$PID" || return 1
+    count=0
+    while running && [ "$count" -lt 10 ]; do sleep 1; count=$((count + 1)); done
+    if running; then echo "laser-bridge has not completed synchronous shutdown; see $LOG" >&2; return 1; fi
+    rm -f "$PIDFILE"
+    echo "laser-bridge stopped"
+}
+case "${1:-}" in
+    start) start;;
+    stop) stop;;
+    restart) stop && start;;
+    status) if running; then echo "laser-bridge running pid=$PID"; else echo "laser-bridge stopped"; exit 3; fi;;
+    *) echo "Usage: $0 {start|stop|restart|status}" >&2; exit 2;;
+esac
