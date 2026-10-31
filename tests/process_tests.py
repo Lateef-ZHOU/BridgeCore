@@ -9,12 +9,14 @@ exe = sys.argv[1]
 # Keep Qt diagnostics in captured stderr regardless of the host's journald logging backend.
 os.environ["QT_FORCE_STDERR_LOGGING"] = "1"
 listed = subprocess.run([exe, "--list-iface"], capture_output=True, text=True, check=True)
-src = next((line.split("\t")[1].split(",")[0] for line in listed.stdout.splitlines()
-            if len(line.split("\t")) >= 2 and line.split("\t")[1]), None)
-if not src:
+interface = next((line.split("\t") for line in listed.stdout.splitlines()
+                  if len(line.split("\t")) >= 2 and line.split("\t")[1]), None)
+if not interface:
     print("No Ethernet IPv4 available for CLI resolution; skipping process test")
     sys.exit(77)
-base = [exe, "run", "--serialport", "/test-only", "--src", src,
+iface, src = interface[0], interface[1].split(",")[0]
+# Pcap uses an explicit packet source address independent of the system's IPv4 configuration.
+base = [exe, "run", "--serialport", "/test-only", "--iface", iface, "--src", "192.0.2.123",
         "--srcPort", "2000", "--dst", "192.0.2.2", "--dstPort", "2001"]
 for failure, message, error in (
         ("BRIDGE_TEST_GETIFADDRS_FAIL", "Cannot enumerate local interface addresses (getifaddrs)", errno.ENOMEM),
@@ -34,11 +36,18 @@ for failure, message, error in (
     else:
         assert result.stdout and all(not line.split("\t")[1] for line in result.stdout.splitlines())
     assert "all transport resources released" in result.stderr
-    # Existing run validation still rejects incomplete interface information, without starting workers.
-    result = subprocess.run([*base, "--device", "whlsDevice"], env=env,
+    # Missing MTU rejects startup; unavailable display addresses do not block raw Ethernet use.
+    result = subprocess.run([*base, "--device", "whlsDevice"],
+                            env={**env, "BRIDGE_TEST_EARLY_SIGNAL": "INT"},
                             capture_output=True, text=True, timeout=4)
-    assert result.returncode == 2, (failure, result.stderr)
-    assert message in result.stderr and "--src must be assigned" in result.stderr
+    assert result.returncode == (0 if failure == "BRIDGE_TEST_INET_NTOP_FAIL" else 2), (failure, result.stderr)
+    assert message in result.stderr
+    if failure == "BRIDGE_TEST_GETIFADDRS_FAIL":
+        assert "Unknown --iface" in result.stderr
+    elif failure != "BRIDGE_TEST_INET_NTOP_FAIL":
+        assert "--iface must have a valid MTU" in result.stderr
+    else:
+        assert "exit signal queued before exec" in result.stderr
     assert "all transport resources released" in result.stderr
 for device in ("whlsDevice", "sqafDevice"):
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -90,4 +99,4 @@ for device in ("whlsDevice", "sqafDevice"):
                                 capture_output=True, text=True, timeout=4)
         assert result.returncode == 1, (device, failure, result.stderr)
         assert "all transport resources released" in result.stderr
-print("32 process checks passed: interface diagnostics and unchanged returns; both devices, exit signals, read recovery, signal setup and initial open failure")
+print("32 process checks passed: explicit interface with unassigned source IPv4; diagnostics, both devices, exit signals, read recovery, signal setup and initial open failure")

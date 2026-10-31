@@ -27,25 +27,25 @@ ctest --test-dir BridgeCore/build --output-on-failure
 ./BridgeCore/build/bridge --list-serialdevice
 
 ./BridgeCore/build/bridge run --device whlsDevice \
-  --serialport /dev/ttyUSB0 \
+  --serialport /dev/ttyUSB0 --iface eth0 \
   --src 192.168.1.102 --srcPort 57568 \
   --dst 192.168.1.10 --dstPort 57568
 ```
 
-将示例地址换成实际配置。`--src` 必须已配置在本机以太网接口上，程序据此选卡，`--list-iface` 会列出地址和 MTU。对端与本机应处于同一以太网，程序不做路由/网关选择；未给 --dstMac 时直接向 --dst 发 ARP，给出时使用指定 MAC。
+将示例地址换成实际配置。`--iface` 必填，使用 `--list-iface` 列出的接口名选择网卡。`--src` 是 Pcap 所组以太帧中的源 IPv4，不要求配置在该网卡的系统网络栈中，也不修改系统网络配置；枚举中的 IPv4 仅供查看。程序检查地址格式、端口和网卡 MTU。对端应处于同一以太网，程序不做路由/网关选择；未给 --dstMac 时直接向 --dst 发 ARP，给出时使用指定 MAC。
 
 CDL5 DMA 采集端（默认 DMA 路径为 /dev/cdl5_dma_proxy，可用 --dma-device 改写）：
 
 ```sh
 ./BridgeCore/build/bridge run --device cdl5Device \
-  --src 192.168.1.11 --srcPort 55200 \
+  --iface eth0 --src 192.168.1.11 --srcPort 55200 \
   --dst 192.168.1.102 --dstPort 55200 \
   --dstMac <Windows选中网卡的MAC>
 ```
 
 将最后的占位符替换成实际 MAC，例如 02:11:22:33:44:55，不保留尖括号。DMA 突发强制指定 MAC：现有 Pcap 的 ARP 等待槽只保留最后一包，不能让首帧数千包等待 ARP。CDL5 不接受 --serialport，--list-serialdevice 仍只列串口型号，--help 列全部接入类型。接口 MTU 必须容纳 1024 字节 UDP 载荷。
 
-板端需要匹配的 DMA 代理驱动、/dev/mem 和访问权限，并且只允许一个采集程序占用 DMA；部署时需先停旧采集服务。此轮只构建和模拟验证，未替换板上现有 bridge、激光器服务或采集服务。
+板端需要匹配的 DMA 代理驱动、/dev/mem 和访问权限，并且只允许一个采集程序占用 DMA；部署时需先停旧采集服务及其监控。激光器与 CDL5 的独立服务、开机顺序和镜像归属见 [PetaLinux 部署说明](deploy/petalinux/README.md)，实际验证范围见 VALIDATION。
 
 本地地址枚举、MTU 查询 socket 创建、IPv4 文本转换及 MTU 读取失败时，在失败处记录操作、errno 和系统错误文字；单接口失败同时标明接口名称。接口名称超过 MTU 查询结构的限制时也明确记录。返回方式保持：地址枚举失败返回空列表，其他失败保留可取得的接口信息，未取得的 MTU 仍为 0，`run` 继续沿原校验拒绝不完整信息。
 

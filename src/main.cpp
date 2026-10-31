@@ -85,7 +85,8 @@ int main(int argc, char **argv)
         {"serialport", "Serial port, e.g. /dev/ttyUSB0", "path"},
         {"dma-device", "DMA proxy path (cdl5Device only)", "path", "/dev/cdl5_dma_proxy"},
         {"dstMac", "Peer MAC; required for DMA bursts to avoid ARP pending-packet loss", "MAC"},
-        {"src", "Local IPv4 (selects its Ethernet interface)", "IPv4"},
+        {"iface", "Ethernet interface name from --list-iface, e.g. eth0", "name"},
+        {"src", "Source IPv4 in packets (need not be configured on --iface)", "IPv4"},
         {"srcPort", "Local UDP port", "port"},
         {"dst", "Peer IPv4 on the same Ethernet network", "IPv4"},
         {"dstPort", "Peer UDP port", "port"}
@@ -96,7 +97,7 @@ int main(int argc, char **argv)
         return 2;
     };
     const QStringList listOptions{"list-serialport", "list-iface", "list-serialdevice"};
-    const QStringList runOptions{"device", "serialport", "dma-device", "dstMac", "src", "srcPort", "dst", "dstPort"};
+    const QStringList runOptions{"device", "serialport", "dma-device", "dstMac", "iface", "src", "srcPort", "dst", "dstPort"};
     int lists = 0;
     for (const auto &option : listOptions) lists += parser.isSet(option);
     if (lists > 0) {
@@ -124,7 +125,7 @@ int main(int argc, char **argv)
         return 0;
     }
     if (parser.positionalArguments() != QStringList{"run"}) return reject("Expected run or a list command; see --help");
-    for (const auto &option : QStringList{"device", "src", "srcPort", "dst", "dstPort"})
+    for (const auto &option : QStringList{"device", "iface", "src", "srcPort", "dst", "dstPort"})
         if (!parser.isSet(option) || parser.value(option).isEmpty()) return reject("Missing --" + option);
     const auto type = parser.value("device");
     if (type != "sqafDevice" && type != "whlsDevice" && type != "cdl5Device") return reject("Unsupported --device");
@@ -147,10 +148,11 @@ int main(int argc, char **argv)
     if (!valid || dstPort == 0 || dstPort > 65535) return reject("Invalid --dstPort (1..65535)");
     const auto interfaces = localInterfaces();
     const auto found = std::find_if(interfaces.begin(), interfaces.end(), [&](const auto &item) {
-        return item.addresses.contains(src.toString());
+        return item.interface.pcapDeviceName == parser.value("iface");
     });
-    if (found == interfaces.end() || found->mtu <= 28)
-        return reject("--src must be assigned to an Ethernet interface with a valid MTU; see --list-iface");
+    if (found == interfaces.end()) return reject("Unknown --iface; see --list-iface");
+    if (found->mtu <= 28)
+        return reject("--iface must have a valid MTU; see --list-iface");
     PcapParams udp;
     udp.host = found->interface;
     udp.hostIPv4 = src;

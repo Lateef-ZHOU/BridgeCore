@@ -1,54 +1,65 @@
-# PetaLinux 激光器桥接服务
+# PetaLinux 桥接服务
 
-本目录对应已核查的板卡 192.168.1.11：ARM64、SysVinit，程序安装在 `/root/apps/bridge/bin/bridge`。不是 systemd 单元。桥接器本身不查询激光器或控制出光，业务由 Windows 客户端发起。
+板卡 `192.168.1.11` 使用 ARM64、SysVinit，统一程序安装在 `/root/apps/bridge/bin/bridge`。两个独立进程分别接激光器和 CDL5 DMA，各有配置、PID 和日志。服务不发起出光或采集；业务命令由 Windows 客户端下发。
 
-## 当前连接
+## 连接与文件
 
-| 项目 | 配置 |
-|---|---|
-| 板端 UDP | 192.168.1.11:55100 |
-| Windows UDP | 192.168.1.102:55100 |
-| 激光器协议 | whlsDevice，115200 / 8N1 / 无流控 |
-| 激光器物理插口 | USB 1-1.4，当前 /dev/ttyUSB0 |
-| 串口配置 | /dev/serial/by-path/platform-xhci-hcd.0.auto-usb-0:1.4:1.0-port0 |
-| 服务文件 | /root/apps/bridge/service/laser-bridge |
-| 配置文件 | /root/apps/bridge/etc/laser.conf |
-| 运行日志 | /run/laser-bridge.log（内存，重启不保留） |
+| 项目 | 激光器 | CDL5 |
+|---|---|---|
+| 服务 | laser-bridge | cdl5-bridge |
+| Handle 类型 | whlsDevice | cdl5Device |
+| 网卡 | eth0 | eth0 |
+| 板端 UDP | 192.168.1.11:55100 | 192.168.1.11:55200 |
+| Windows UDP | 192.168.1.102:55100 | 192.168.1.102:55200 |
+| 设备 | USB 物理插口 1-1.4，115200/8N1/无流控 | /dev/cdl5_dma_proxy 与 FPGA 寄存器 |
+| 配置 | /root/apps/bridge/etc/laser.conf | /root/apps/bridge/etc/cdl5.conf |
+| 脚本 | /root/apps/bridge/service/laser-bridge | /root/apps/bridge/service/cdl5-bridge |
+| 日志 | /run/laser-bridge.log | /run/cdl5-bridge.log |
 
-该插口通过用户拔除温控后重新枚举确认。两个转串口芯片同型号且无唯一序列号，不能依赖 by-id 区分，也不依赖 ttyUSB 数字稳定。服务在启动时只将配置的 by-path 解析为实际 tty；移动激光器插口需修改配置，运行期间拔插导致 tty 重编号时需重启服务。不要让另一个程序同时使用这个串口。
+配置的 `INTERFACE` 明确传入 `--iface`。`SOURCE_IP` 只决定 Pcap 组帧的源 IPv4，不要求系统网络栈已经配置这个地址；接口枚举的 IPv4 仅供查看。两个实例使用同一网卡、不同端口，互不接收对方的数据报。
+
+激光器固定 `/dev/serial/by-path/platform-xhci-hcd.0.auto-usb-0:1.4:1.0-port0`，启动时解析到实际 tty；不依赖 ttyUSB 编号、不探测其他串口。设备换插口需修改配置。激光器目标 MAC 通过 ARP 取得。
+
+CDL5 的 `DESTINATION_MAC=14:4f:d7:c7:d0:8c` 是本轮 Windows“以太网 6”的实际 MAC。更换上位机网卡时需一起修改。DMA 突发强制指定 MAC，避免现有 ARP 等待槽只留最后一包而丢掉首帧；Bridge 不增加分片头，按 Handle 的 1024 字节/32 字节对齐块直接转发。帧长由 FPGA 活动寄存器取得，桥接服务不固化 4 kHz/5 kHz 尺寸。
 
 ## 操作
 
 ```sh
 /etc/init.d/laser-bridge status
-/etc/init.d/laser-bridge start
-/etc/init.d/laser-bridge stop
-/etc/init.d/laser-bridge restart
+/etc/init.d/cdl5-bridge status
 tail -n 50 /run/laser-bridge.log
+tail -n 50 /run/cdl5-bridge.log
+
+/etc/init.d/cdl5-bridge stop
+/etc/init.d/cdl5-bridge start
+/etc/init.d/laser-bridge restart
 ```
 
-start 的进程存活检查不等于设备已完成通信；串口、UDP 打开结果看日志，端到端状态由 Windows 查询确认。停止发 SIGTERM 并等待既有同步关闭，超时只报告，不强杀。服务自身不补发关光命令；Windows 页面断开时仍按已有行为发送一次关光。
+两服务都支持 start/stop/restart/status。重复 start 不增加实例；PID 检查同时核对程序路径和设备类型，避免两个实例使用同一可执行文件时串认。start 只检查进程存活，连接是否打开看日志，端到端采集需客户端实测。stop 发 SIGTERM 并等待原同步关闭，不强杀。CDL5 最多等待 20 秒，容纳既有累积窗口和恢复过程；激光器最多等待 10 秒。服务本身不补发关光，Windows 页面断开仍按其既有逻辑发送。
 
-Windows 主程序进入“镭晟激光器”页，选择已配置 `192.168.1.102` 的网卡（本机实测为“以太网 6”），点击连接。初查自动读取脉宽、身份、状态及测量，随后每 500 ms 查询状态/测量。两端使用已有 Pcap 以太网 UDP Handle，载荷是协议主体，MAC 由 ARP 取得；不提供路由/VLAN/分片或可靠交付扩展。
+## 开机顺序与 DMA 占用
 
-## 文件与开机入口
+1. rcS 加载系统运行库和 root-home.tar.gz。
+2. `S11cdl33-service` 保留原板卡初始化，包括现有 ADC AC 耦合配置；当前配置不自动开始采集。
+3. `S12laser-bridge` 启动激光器桥接。
+4. `S13cdl5-bridge` 先调用 `cdl33-service stop`，停止旧采集程序及其健康监控，再独占打开 DMA。
 
-把本目录 `laser-bridge` 以 0755 放到上述服务位置，`laser.conf` 以 0644 放到配置位置，保持 LF 换行。系统镜像仅增加：
+保留 S11 是为了继续使用其已有初始化，不是让两个采集程序并行运行。CDL5 桥接启动后，旧 HTTP 采集服务也随之停止。独立的硬件喂狗服务 `S10cdl33-watchdog` 保持运行，与旧采集健康监控不是一回事。将初始化从旧服务拆出属于后续工作；不要在桥接占用 DMA 时手动重启旧采集服务。
+
+## 镜像归属与回退
+
+程序、两份配置和两份脚本放在 root-home.tar.gz，脚本 0755、配置 0644、LF 换行。image.ub 的用户态根文件系统保留激光器已有链接，仅增加：
 
 ```text
-/etc/init.d/laser-bridge -> /root/apps/bridge/service/laser-bridge
-/etc/rc5.d/S12laser-bridge -> ../init.d/laser-bridge
-/etc/rc0.d/K01laser-bridge -> ../init.d/laser-bridge
-/etc/rc1.d/K01laser-bridge -> ../init.d/laser-bridge
-/etc/rc6.d/K01laser-bridge -> ../init.d/laser-bridge
+/etc/init.d/cdl5-bridge -> /root/apps/bridge/service/cdl5-bridge
+/etc/rc5.d/S13cdl5-bridge -> ../init.d/cdl5-bridge
+/etc/rc0.d/K01cdl5-bridge -> ../init.d/cdl5-bridge
+/etc/rc1.d/K01cdl5-bridge -> ../init.d/cdl5-bridge
+/etc/rc6.d/K01cdl5-bridge -> ../init.d/cdl5-bridge
 ```
 
-板卡在 rcS 阶段先加载 `/root` 镜像和运行库，运行级别 5 在网络初始化后启动桥接。服务及配置属于 root-home.tar.gz，系统启动链接属于 image.ub 的用户态根文件系统；内核、设备树、BOOT.BIN 与 boot.scr 保持原样。运行时改配置只改 RAM，长期保存需重新封装 root 镜像和校验文件。科学数据 eMMC 不参与此操作。
+内核、设备树、内核模块、系统运行库、BOOT.BIN、boot.scr 和 eMMC 科学数据不变。运行时改 `/root` 只影响 RAM，持久化需同步封装 root-home.tar.gz 及校验文件。
 
-2026-10-30 已备份、替换并校验 SD 的 image.ub 与 root-home.tar.gz 及各自 sha256，当前系统也已安装并启动服务。**本轮未重启，开机入口尚未经过实际重启验证。**
+2026-10-31 已更新运行程序，验证两个实例分别启停、重复 start 和 DMA 独占。SD 镜像及 SHA256 已替换并校验；本轮没有重启，开机链接检查不等同于重启实测，也未触发真实采集。
 
-## 回退
-
-本次备份在 SD 根目录 `codex_laser_service_backup_20261030`，含原 image.ub、root-home.tar.gz、各自校验文件及 RESTORE.txt。
-
-若 SSH 仍通，先停止桥接服务，再从备份恢复这四个文件，sync 后按需要重启。若 SSH 不通，断电取出 SD，用读卡器将备份目录内四文件覆盖回 SD 根目录，再上电。不要覆盖 BOOT.BIN 或 boot.scr；无需操作 eMMC。备份仅针对本次增量，旧服务与科学数据保持不变。
+本轮备份目录为 SD 根目录的 `codex_bridge_dma_backup_20261031`，保存更新前 image.ub、root-home.tar.gz、各自 SHA256 和 RESTORE.txt。SSH 不通时可断电取 SD，通过读卡器恢复这四个文件，再上电；不要改 BOOT.BIN、boot.scr 或 eMMC。之前的备份全部保留。

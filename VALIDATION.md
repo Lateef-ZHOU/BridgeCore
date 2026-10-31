@@ -1,5 +1,17 @@
 # 验证记录
 
+## 2026-10-31：显式网卡与双实例板卡部署
+
+- --iface 必填，按 --list-iface 的接口名选卡；--src 不要求属于系统网卡的 IPv4 配置（用户定），只检查现有地址格式和端口约束。网卡 MTU 和 DMA 突发 MAC 校验保留。枚举地址缺失不再导致 run 拒绝启动。
+- ArchHFNL 严格警告 Release 增量构建通过，CTest 4/4。CLI 22项覆盖缺网卡、未知网卡和列表参数冲突；进程32项使用未配置的文档网段源IPv4，保留收发替身与SIGINT/SIGTERM退出验证；注入 inet_ntop 失败后无显示IPv4仍可运行。未操作测试主机的真实设备收发。
+- 同一固定依赖经既有 ARM64 SDK / GCC12 / QtCore6.8.3 / 板卡glibc sysroot 重新构建。新bridge SHA256 `4b77f39e791b4f47ba73eff240eeca2a154481cad149306e503ea15348795982`。在板卡先停原laser-bridge再替换程序；实际打开eth0、激光器ttyUSB0和只读DMA设备成功。
+- laser-bridge与cdl5-bridge分别使用55100/55200，参数均为 --iface eth0、源192.168.1.11、对端192.168.1.102。DMA目标MAC核对Windows网卡与板端ARP表为14:4f:d7:c7:d0:8c。重复start的PID不变；停止/重启DMA不影响激光器，重启激光器不影响DMA。最终时点PID分别7630/7600；/proc显示DMA只读fd归新桥接。旧采集服务及健康监控退出，原硬件watchdog进程735仍在。
+- 为保留板卡既有ADC AC耦合初始化，S11cdl33-service不删除，S13cdl5-bridge接管前调用旧服务stop；运行中不保留双DMA占用。真实活动配置核查为Profile8/5kHz/450×128，区别于早期4k描述。本轮没有下发采集命令，也未重新验证Windows端到端数据。
+- 离线重封装逐项比对：image.ub中内核和设备树字节相同，原cpio路径及元数据全部相同，仅增加CDL5的init.d与rc5/0/1/6五个链接；root镜像只替换bridge、激光器脚本及配置，增加CDL5脚本和配置。mkimage保留原FIT的unit-address警告，不改变布局。
+- 更新前SD备份 `codex_bridge_dma_backup_20261031`，含两个镜像、两个SHA256和读卡器恢复说明。新image.ub SHA256 `7ada2da72a37711bdc4656cfac0d6cfef4686d65f7c22b4f3db1767fd7956fbc`；root-home.tar.gz `9f54e4b02e46c199df84db109a71de24db8a0a0dd556f82aabbd77d3143790f3`。先写临时文件校验再替换，sync后再次校验通过；BOOT.BIN/boot.scr哈希保持。eMMC科学数据未操作。
+- 自启动入口已持久化，**本轮未重启，不宣称重启验证通过**。也未改变内核、驱动、运行库或主程序。无GitHub推送、无新Release。
+- 证据：本机 `build-linux-validation/deploy-20261031/{install.log,runtime-check.log,persist.log,output/verification.json}`；ArchHFNL `~/.cache/bridge-fixed-20261029/build-iface-final.log`、`build/Testing/Temporary/LastTest.log`、`~/.cache/bridge-dma-arm-20261031/build-iface-final.log`、`~/board-bridge-dma-20261031/pack-final.log`。镜像含机器配置与密钥，只保存在忽略目录/私有备份，不入Git。
+
 ## 2026-10-31：CDL5 DMA 接入
 
 - 新增 --device cdl5Device、可选 --dma-device 和 DMA 必填 --dstMac；串口枚举仍只列原两个串口型号。Bridge 模板接受具体端点类型，不新增中转对象、分块缓存或尺寸状态。

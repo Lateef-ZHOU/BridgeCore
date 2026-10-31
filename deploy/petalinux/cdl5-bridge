@@ -1,0 +1,58 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          cdl5-bridge
+# Required-Start:    $network cdl33-service
+# Required-Stop:     $network
+# Default-Start:     5
+# Default-Stop:      0 1 6
+# Short-Description: CDL5 DMA to Ethernet UDP bridge
+### END INIT INFO
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+export PATH
+[ ! -r /etc/default/locale ] || { . /etc/default/locale; export LANG; }
+APP=/root/apps/bridge/bin/bridge
+CONFIG=/root/apps/bridge/etc/cdl5.conf
+PIDFILE=/run/cdl5-bridge.pid
+LOG=/run/cdl5-bridge.log
+running() {
+    [ -r "$PIDFILE" ] || return 1
+    PID=$(cat "$PIDFILE")
+    case "$PID" in ''|*[!0-9]*) return 1;; esac
+    [ "$(readlink "/proc/$PID/exe" 2>/dev/null)" = "$APP" ] && kill -0 "$PID" 2>/dev/null &&
+        tr '\000' '\n' <"/proc/$PID/cmdline" | grep -qx cdl5Device
+}
+start() {
+    if running; then echo "cdl5-bridge running pid=$PID"; return 0; fi
+    [ -x "$APP" ] && [ -r "$CONFIG" ] || { echo "Missing bridge or configuration" >&2; return 1; }
+    . "$CONFIG"
+    [ -c "$DMA_DEVICE" ] || { echo "DMA device missing: $DMA_DEVICE" >&2; return 1; }
+    # S11 performs the existing ADC coupling initialization. End its supervisor and
+    # acquisition process before handing exclusive DMA ownership to this instance.
+    /etc/init.d/cdl33-service stop || return 1
+    nohup "$APP" run --device cdl5Device --dma-device "$DMA_DEVICE" \
+        --iface "$INTERFACE" --src "$SOURCE_IP" --srcPort "$SOURCE_PORT" \
+        --dst "$DESTINATION_IP" --dstPort "$DESTINATION_PORT" --dstMac "$DESTINATION_MAC" \
+        </dev/null >>"$LOG" 2>&1 &
+    echo $! >"$PIDFILE"
+    sleep 1
+    if running; then echo "cdl5-bridge started pid=$PID; log=$LOG"; return 0; fi
+    echo "cdl5-bridge exited during startup; see $LOG" >&2
+    rm -f "$PIDFILE"
+    return 1
+}
+stop() {
+    if ! running; then rm -f "$PIDFILE"; echo "cdl5-bridge stopped"; return 0; fi
+    kill -TERM "$PID" || return 1
+    count=0
+    while running && [ "$count" -lt 20 ]; do sleep 1; count=$((count + 1)); done
+    if running; then echo "cdl5-bridge has not completed synchronous shutdown; see $LOG" >&2; return 1; fi
+    rm -f "$PIDFILE"
+    echo "cdl5-bridge stopped"
+}
+case "${1:-}" in
+    start) start;;
+    stop) stop;;
+    restart) stop && start;;
+    status) if running; then echo "cdl5-bridge running pid=$PID"; else echo "cdl5-bridge stopped"; exit 3; fi;;
+    *) echo "Usage: $0 {start|stop|restart|status}" >&2; exit 2;;
+esac

@@ -18,7 +18,8 @@ running() {
     [ -r "$PIDFILE" ] || return 1
     PID=$(cat "$PIDFILE")
     case "$PID" in ''|*[!0-9]*) return 1;; esac
-    [ "$(readlink "/proc/$PID/exe" 2>/dev/null)" = "$APP" ] && kill -0 "$PID" 2>/dev/null
+    [ "$(readlink "/proc/$PID/exe" 2>/dev/null)" = "$APP" ] && kill -0 "$PID" 2>/dev/null &&
+        tr '\000' '\n' <"/proc/$PID/cmdline" | grep -qx whlsDevice
 }
 start() {
     if running; then echo "laser-bridge running pid=$PID"; return 0; fi
@@ -28,7 +29,7 @@ start() {
     # Resolve only the configured physical socket. Do not probe other serial devices.
     SERIAL_DEVICE=$(readlink -f "$SERIAL_PORT") || return 1
     nohup "$APP" run --device whlsDevice --serialport "$SERIAL_DEVICE" \
-        --src "$SOURCE_IP" --srcPort "$SOURCE_PORT" --dst "$DESTINATION_IP" --dstPort "$DESTINATION_PORT" \
+        --iface "$INTERFACE" --src "$SOURCE_IP" --srcPort "$SOURCE_PORT" --dst "$DESTINATION_IP" --dstPort "$DESTINATION_PORT" \
         </dev/null >>"$LOG" 2>&1 &
     echo $! >"$PIDFILE"
     sleep 1
