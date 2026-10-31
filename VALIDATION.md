@@ -1,5 +1,15 @@
 # 验证记录
 
+## 2026-10-31：独立业务 IP 与双端抓包对照（用户定）
+
+- 两路桥接改为板端 192.168.100.100、Windows 192.168.100.200；激光器端口 55100、CDL5 55200 保持。系统地址仍为板端 192.168.1.11、Windows 192.168.1.102，网卡/MAC/MTU/卸载设置未变，也未向系统网卡添加新地址。
+- 只替换 root 镜像中的 root/apps/bridge/etc/laser.conf 和 cdl5.conf；其他归档文件内容及权限/所有者等元数据逐项一致。运行配置同步替换，两服务经原 SIGTERM 链停止后启动成功，PID 7833/7856。服务及桥接器二进制不变，image.ub、BOOT.BIN、boot.scr 哈希未变，不动 eMMC，不重启。
+- SD 备份：/media/sd-mmcblk1p1/codex_bridge_ip100_backup_20261031_193845；新 root SHA256 为 3df3f788efbfa2df382814220581f80a6d8f399b635b0300dd50399152d449b0。校验通过，原备份保留。离线验证首次把 tar 头校验和当作不变元数据，修正检查后通过；上传校验清单首次含 CRLF，已改为 LF 并重新验证，不影响镜像内容。
+- 180 秒被动抓包，由用户操作采集。板端 39600 个 1024 字节载荷、22 个 32 字节尾块；Windows 5641 个 7168、9 个 1024、22 个 32、12 个 6144、12 个 2048、1 个 5120、1 个 3072。22 个完整帧，每帧 1,843,232 字节，双端逐字节及 SHA256 一致；所有 Windows 批次边界都落在板端原报文边界上。典型帧 1800×1024+32 → 257×7168+1024+32。两端抓包报告 dropped=0。
+- 结论：避开系统 IP 仍复现接收合并，因此系统 IP 重合不是触发此现象的必要条件；不能据此定位具体网卡/驱动/NDIS 子层，也不能泛化为所有环境都不会丢包。本次捕获了 CDL5 双向通信，未捕获激光器 55100 实物查询，不宣称后者完成新地址实测。
+- 证据：cdl5Device/out/packet-boundary-ip100/{board.pcap,windows.pcapng,comparison.json,board.log,windows.log,board-config.txt,windows-addresses.json,windows-rsc.json}；BridgeCore/build-ip100/{deployment.json,deploy.log,root-home-before.tar.gz,root-home.tar.gz}。板端临时抓包器和记录已清除。未修改生产 Handle、分块、协议、Collector 或驱动。
+
+
 ## 2026-10-31：显式网卡与双实例板卡部署
 
 - --iface 必填，按 --list-iface 的接口名选卡；--src 不要求属于系统网卡的 IPv4 配置（用户定），只检查现有地址格式和端口约束。网卡 MTU 和 DMA 突发 MAC 校验保留。枚举地址缺失不再导致 run 拒绝启动。

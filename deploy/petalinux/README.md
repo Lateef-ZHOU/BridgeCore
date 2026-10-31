@@ -2,6 +2,8 @@
 
 板卡 `192.168.1.11` 使用 ARM64、SysVinit，统一程序安装在 `/root/apps/bridge/bin/bridge`。两个独立进程分别接激光器和 CDL5 DMA，各有配置、PID 和日志。服务不发起出光或采集；业务命令由 Windows 客户端下发。
 
+管理 SSH 仍使用系统地址 `192.168.1.11`；两路业务改用未配置到系统网卡的 `192.168.100.100` ↔ `192.168.100.200`，端口、物理网卡、MAC 和卸载设置保持。此改动用于对照接收合并现象，是否消除合并以双端抓包为准。
+
 ## 连接与文件
 
 | 项目 | 激光器 | CDL5 |
@@ -9,8 +11,8 @@
 | 服务 | laser-bridge | cdl5-bridge |
 | Handle 类型 | whlsDevice | cdl5Device |
 | 网卡 | eth0 | eth0 |
-| 板端 UDP | 192.168.1.11:55100 | 192.168.1.11:55200 |
-| Windows UDP | 192.168.1.102:55100 | 192.168.1.102:55200 |
+| 板端 UDP | 192.168.100.100:55100 | 192.168.100.100:55200 |
+| Windows UDP | 192.168.100.200:55100 | 192.168.100.200:55200 |
 | 设备 | USB 物理插口 1-1.4，115200/8N1/无流控 | /dev/cdl5_dma_proxy 与 FPGA 寄存器 |
 | 配置 | /root/apps/bridge/etc/laser.conf | /root/apps/bridge/etc/cdl5.conf |
 | 脚本 | /root/apps/bridge/service/laser-bridge | /root/apps/bridge/service/cdl5-bridge |
@@ -63,3 +65,5 @@ tail -n 50 /run/cdl5-bridge.log
 2026-10-31 已更新运行程序，验证两个实例分别启停、重复 start 和 DMA 独占。SD 镜像及 SHA256 已替换并校验；本轮没有重启，开机链接检查不等同于重启实测，也未触发真实采集。
 
 本轮备份目录为 SD 根目录的 `codex_bridge_dma_backup_20261031`，保存更新前 image.ub、root-home.tar.gz、各自 SHA256 和 RESTORE.txt。SSH 不通时可断电取 SD，通过读卡器恢复这四个文件，再上电；不要改 BOOT.BIN、boot.scr 或 eMMC。之前的备份全部保留。
+
+2026-10-31 地址对照已部署并持久化；备份在 `/media/sd-mmcblk1p1/codex_bridge_ip100_backup_20261031_193845`，恢复其中的 root-home.tar.gz 与校验文件后重启可回到旧业务地址（客户端默认值需配套恢复）。22 个完整帧双端比对相同，但新地址仍发生 7168 字节等合并，地址改动没有消除该现象。详细统计见 VALIDATION。
