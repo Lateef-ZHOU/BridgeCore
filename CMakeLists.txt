@@ -17,15 +17,15 @@ FetchContent_Declare(sqaf
     GIT_TAG 9f2e4fdfbcaee661c60ec17330a736596a6dac71
     SOURCE_SUBDIR include)
 FetchContent_Declare(whls
-    # Body-TX revision is local pending publication; do not fetch the older wire-TX API.
-    GIT_REPOSITORY "${CMAKE_CURRENT_SOURCE_DIR}/../RayshiningDevice"
+    # Keep the verified body-TX revision; transport semantics do not change on publication.
+    GIT_REPOSITORY https://github.com/Lateef-ZHOU/RayshiningDevice.git
     GIT_TAG 1d5e1a3cdfbab3e7d06c983aa242ce71de6f2333
     SOURCE_SUBDIR include)
 FetchContent_MakeAvailable(lidar_handle_core sqaf whls)
 set(CDL5_WITH_DMA ON CACHE BOOL "DMA acquisition endpoint" FORCE)
-# Local residence pending publication; the shared DmaProxy ABI is supplied explicitly.
+# The shared DmaProxy ABI is supplied explicitly, independently of the residence checkout.
 FetchContent_Declare(cdl5
-    GIT_REPOSITORY "${CMAKE_CURRENT_SOURCE_DIR}/../cdl5Device"
+    GIT_REPOSITORY https://github.com/Lateef-ZHOU/cdl5Device.git
     GIT_TAG 53eb8c1ba3b7ed00adfc0e674c047674d14e7a23)
 FetchContent_MakeAvailable(cdl5)
 find_package(Boost 1.88 QUIET CONFIG COMPONENTS circular_buffer)

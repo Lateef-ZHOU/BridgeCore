@@ -8,7 +8,7 @@ Linux 串口/DMA ↔ UDP 桥接器，可执行文件名 `bridge`。Qt Core 事�
 
 需要 C++20、CMake ≥3.28、Qt Core ≥6.8.3、libserialport ≥0.1.1、libpcap ≥1.10.0。Boost.CircularBuffer ≥1.88 优先从系统查找，否则按固定 SHA256 下载。无需 Qt Quick/QML。
 
-本仓尚未发布：把 `BridgeCore`、`cdl5Device` 和包含提交 `1d5e1a3cdfbab3e7d06c983aa242ce71de6f2333` 的 `RayshiningDevice` Git 仓库放在同一父目录。CMake 从相邻仓库固定提交获取依赖（版本见 CMakeLists.txt）；其他依赖从 GitHub 固定提交获取。DmaProxy 共享 ioctl 头由参数显式指定，不复制 ABI。源码覆盖可用标准 FETCHCONTENT_SOURCE_DIR_* 参数；激光器不能覆盖为旧版完整帧发送接口。
+源码仓库：https://github.com/Lateef-ZHOU/BridgeCore 。CMake 从 GitHub 按完整提交获取 HandleCore、SqafDevice、RayshiningDevice 和 cdl5Device（版本见 CMakeLists.txt），不要求相邻设备仓库。DmaProxy 共享 ioctl 头仍须由参数显式指定，不复制 ABI；其源码目录目前另行提供。源码覆盖可用标准 FETCHCONTENT_SOURCE_DIR_* 参数；激光器不能覆盖为旧版完整帧发送接口。
 
 ```sh
 cmake -S BridgeCore -B BridgeCore/build -DCMAKE_BUILD_TYPE=Release \
@@ -17,7 +17,7 @@ cmake --build BridgeCore/build -j
 ctest --test-dir BridgeCore/build --output-on-failure
 ```
 
-运行所需动态库由系统提供。使用自建 libserialport 时，配置 `PKG_CONFIG_PATH`，并确保运行时能找到该动态库。已完成 Linux x86_64 验证及 PetaLinux ARM64 部署，三个枚举命令和激光器真实串口/UDP 查询通过；型号范围及证据见 VALIDATION。仓库许可证和公开发布尚未确定；依赖各自许可保持不变。
+运行所需动态库由系统提供。使用自建 libserialport 时，配置 `PKG_CONFIG_PATH`，并确保运行时能找到该动态库。已完成 Linux x86_64 验证及 PetaLinux ARM64 部署，三个枚举命令和激光器真实串口/UDP 查询通过；型号范围及证据见 VALIDATION。按用户要求公开源码，保留现有许可标记，整体许可证后续整理；依赖各自许可保持不变。
 
 ## 查询与启动
 
