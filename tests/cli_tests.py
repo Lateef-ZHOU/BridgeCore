@@ -23,4 +23,9 @@ for option, value, message in [("--device", "wrong", "Unsupported"), ("--src", "
     args = base.copy()
     args[args.index(option) + 1] = value
     check(args, 2, message)
-print("15 CLI checks passed (no hardware opened)")
+dma = ["run", "--device", "cdl5Device", "--src", "192.0.2.123", "--srcPort", "55200", "--dst", "192.0.2.124", "--dstPort", "55200"]
+check(dma, 2, "requires --dstMac")
+check(dma + ["--serialport", "/dev/ttyUSB0"], 2, "does not use --serialport")
+check(dma + ["--dstMac", "02:00:00:00:00:02"], 2, "--src must be assigned")
+check(["--list-iface", "--dma-device", "/fake"], 2, "List commands")
+print("19 CLI checks passed (no hardware opened)")

@@ -1,17 +1,18 @@
 # BridgeCore
 
-Linux 串口 ↔ UDP 桥接器，可执行文件名 `bridge`。Qt Core 事件循环常驻，无 UI；一进程接一台串口设备，多个设备分别启动多个进程并使用不同 UDP 端口。
+Linux 串口/DMA ↔ UDP 桥接器，可执行文件名 `bridge`。Qt Core 事件循环常驻，无 UI；一进程接一台设备，多个设备分别启动多个进程并使用不同 UDP 端口。
 
-串口收发、校验、组帧、断线重连和同步关闭由已有 Handle 完成。桥接器只选择协议、连接两端并转发字节；不包含设备控制页面、采集任务、图表、业务轮询或出光命令。
+串口收发、校验、组帧、DMA 采集/分块、断线重连和同步关闭由各自 Handle 完成。桥接器只选择设备、连接两端并转发字节；不包含设备控制页面、采集任务、图表、业务轮询或出光命令。
 
 ## 构建
 
 需要 C++20、CMake ≥3.28、Qt Core ≥6.8.3、libserialport ≥0.1.1、libpcap ≥1.10.0。Boost.CircularBuffer ≥1.88 优先从系统查找，否则按固定 SHA256 下载。无需 Qt Quick/QML。
 
-当前源码及新激光器接口只在本地，尚未发布：把 `BridgeCore` 和包含提交 `1d5e1a3cdfbab3e7d06c983aa242ce71de6f2333` 的 `RayshiningDevice` Git 仓库放在同一父目录。CMake 从该仓固定提交获取协议头；其他依赖从 GitHub 固定提交获取。源码目录覆盖可使用标准 `FETCHCONTENT_SOURCE_DIR_WHLS` 参数，不能覆盖为旧版完整帧发送接口。
+本仓尚未发布：把 `BridgeCore`、`cdl5Device` 和包含提交 `1d5e1a3cdfbab3e7d06c983aa242ce71de6f2333` 的 `RayshiningDevice` Git 仓库放在同一父目录。CMake 从相邻仓库固定提交获取依赖（版本见 CMakeLists.txt）；其他依赖从 GitHub 固定提交获取。DmaProxy 共享 ioctl 头由参数显式指定，不复制 ABI。源码覆盖可用标准 FETCHCONTENT_SOURCE_DIR_* 参数；激光器不能覆盖为旧版完整帧发送接口。
 
 ```sh
-cmake -S BridgeCore -B BridgeCore/build -DCMAKE_BUILD_TYPE=Release
+cmake -S BridgeCore -B BridgeCore/build -DCMAKE_BUILD_TYPE=Release \
+  -DCDL5_DMA_PROXY_SOURCE_DIR=/path/to/DmaProxy
 cmake --build BridgeCore/build -j
 ctest --test-dir BridgeCore/build --output-on-failure
 ```
@@ -31,7 +32,20 @@ ctest --test-dir BridgeCore/build --output-on-failure
   --dst 192.168.1.10 --dstPort 57568
 ```
 
-将示例地址换成实际配置。`--src` 必须已配置在本机以太网接口上，程序据此选卡，`--list-iface` 会列出地址和 MTU。对端与本机应处于同一以太网，程序直接向 `--dst` 发 ARP，不做路由/网关选择。
+将示例地址换成实际配置。`--src` 必须已配置在本机以太网接口上，程序据此选卡，`--list-iface` 会列出地址和 MTU。对端与本机应处于同一以太网，程序不做路由/网关选择；未给 --dstMac 时直接向 --dst 发 ARP，给出时使用指定 MAC。
+
+CDL5 DMA 采集端（默认 DMA 路径为 /dev/cdl5_dma_proxy，可用 --dma-device 改写）：
+
+```sh
+./BridgeCore/build/bridge run --device cdl5Device \
+  --src 192.168.1.11 --srcPort 55200 \
+  --dst 192.168.1.102 --dstPort 55200 \
+  --dstMac <Windows选中网卡的MAC>
+```
+
+将最后的占位符替换成实际 MAC，例如 02:11:22:33:44:55，不保留尖括号。DMA 突发强制指定 MAC：现有 Pcap 的 ARP 等待槽只保留最后一包，不能让首帧数千包等待 ARP。CDL5 不接受 --serialport，--list-serialdevice 仍只列串口型号，--help 列全部接入类型。接口 MTU 必须容纳 1024 字节 UDP 载荷。
+
+板端需要匹配的 DMA 代理驱动、/dev/mem 和访问权限，并且只允许一个采集程序占用 DMA；部署时需先停旧采集服务。此轮只构建和模拟验证，未替换板上现有 bridge、激光器服务或采集服务。
 
 本地地址枚举、MTU 查询 socket 创建、IPv4 文本转换及 MTU 读取失败时，在失败处记录操作、errno 和系统错误文字；单接口失败同时标明接口名称。接口名称超过 MTU 查询结构的限制时也明确记录。返回方式保持：地址枚举失败返回空列表，其他失败保留可取得的接口信息，未取得的 MTU 仍为 0，`run` 继续沿原校验拒绝不完整信息。
 
@@ -47,14 +61,17 @@ ctest --test-dir BridgeCore/build --output-on-failure
 
 ## UDP 载荷
 
-UDP 一个数据报对应 Handle 一次 send；串口完整校验帧对应一个上行数据报。没有附加桥接器消息头、时间戳或业务解码。
+UDP 一个数据报对应 Handle 一次 send；串口完整校验帧或 DMA Handle 一次交付对应一个上行数据报。没有附加桥接器消息头、时间戳或业务解码。
 
-两个方向都由接收 worker 排队，再在主线程调用对端 send。UDP 接收交出的 Pcap 视图借用抓包缓冲，排队前深拷贝；当前两种串口成帧器交出自有 `QByteArray`，排队按值捕获、通过隐式共享保活，不额外复制字节。以后接入的串口成帧器也必须满足这一所有权契约。
+两个方向都由接收 worker 排队，再在主线程调用对端 send。UDP 接收交出的 Pcap 视图借用抓包缓冲，排队前深拷贝；串口成帧器和 DMA 读取器交出自有 `QByteArray`，排队按值捕获、通过隐式共享保活，不额外复制字节。以后接入的设备也必须满足这一所有权契约。
 
-| 类型 | UDP → 串口 | 串口 → UDP |
+| 类型 | UDP → 设备 | 设备 → UDP |
 |---|---|---|
 | whlsDevice | 地址 2 + 命令 1 + 脉宽号 1 + 长度 2 + 数据 N | 相同主体格式 |
 | sqafDevice | cmd1、cmd2、data1、data2，共 4 字节 | 当前 PelcoDHandle 交付的完整 7 字节帧 |
+| cdl5Device | 8字节：小端0x354c4443 + uint32累积秒数；1..13开始，0取消 | FPGA原帧，32字节记录对齐，最多1024字节/包，尾包实际长度 |
+
+CDL5 帧长和触发周期由 Handle 读取 FPGA 活动寄存器；4 kHz 的 500×128 与5 kHz 的450×128共用此实现，Bridge 不保存尺寸、不拆记录、不解析 meta。三路 FP32 的解析和 double 保存归桌面官邸。取消/退出先通知 Handle 工作线程停采，等待当前帧停止或超时恢复后再释放资源；无需 Bridge 增加轮询或保存排空。细节见 cdl5Device/docs/acquisition.md。
 
 激光器地址和长度保持大端，数据区不改字节序。LaserHandle 为下行补 WHLS、CRC16 和 0x55；上行检查后移除这层封套。**不要向 UDP 发送完整 WHLS 串口帧**。视强下行由 PelcoDHandle 补帧头、固定设备地址和校验和，上行接口本轮未改。
 

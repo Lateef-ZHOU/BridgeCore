@@ -1,8 +1,10 @@
 # BridgeCore 维护入口
 
+2026-10-31：已新增 cdl5Device Linux DMA 接入，8字节命令原样下发，Handle交出最多1024字节/32字节对齐的自有块，Bridge只转发。4k/5k帧长由Handle读寄存器，不在Bridge固化尺寸。DMA入口要求 --dstMac，避免现有ARP单包槽覆盖首帧。仅本地构建/模拟验证，尚未部署，不改既有激光器服务、板卡镜像或eMMC。cdl5Device固定相邻本地提交，共享ABI显式引用DmaProxy。
+
 2026-10-30：现有 ARM64 bridge 安装在 /root/apps/bridge/bin，新增 deploy/petalinux 的 SysV 服务和物理串口配置。激光器由拔温控核实为 USB 路径 1-1.4，当前 ttyUSB0；服务仅解析配置的 by-path，不猜测或探测其他设备。板端 192.168.1.11:55100 对端 Windows 192.168.1.102:55100。服务启动不发送业务命令；正常停止沿既有 SIGTERM 链。实机查询、服务重复启停及持久化校验已通过；开机钩子已写入 SD 镜像，本轮未重启验证。内核、设备树、BOOT.BIN、boot.scr、原采集服务和 eMMC 数据未改。详见部署说明及 VALIDATION；本轮仅本地提交。
 
-- Linux 无 UI 命令行桥接器，Qt Core 事件循环；一进程一串口设备与一对 UDP 端点。
+- Linux 无 UI 命令行桥接器，Qt Core 事件循环；一进程一串口或DMA设备与一对 UDP 端点。
 - 复用 HandleCore Serial/Pcap 和官邸协议头，不依赖 DeviceCore、TaskCore、QML 或绘图库；不复制协议实现。Pcap 是已有以太网 UDP Handle，不新增同功能传输层。
 - 数据边界均为 QByteArray。whlsDevice 下行/上行均为 6 字节元信息加数据的主体，由 LaserHandle 补/验/去外层。sqafDevice 沿用当前 Handle：下行 4 字节命令、上行完整 7 字节回帧；本轮未改 Pelco-D 接收接口。
 - worker 只收包并排队交出自有字节，主线程执行对端 send；来自 pcap 的原始视图必须深拷贝后跨线程；串口成帧器必须交出自有 QByteArray，按值捕获以隐式共享保活。析构先同步停止两个源，再销毁成员；不增状态缓存、第二条关闭链或业务查询。

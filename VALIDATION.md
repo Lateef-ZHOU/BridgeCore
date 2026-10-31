@@ -1,5 +1,16 @@
 # 验证记录
 
+## 2026-10-31：CDL5 DMA 接入
+
+- 新增 --device cdl5Device、可选 --dma-device 和 DMA 必填 --dstMac；串口枚举仍只列原两个串口型号。Bridge 模板接受具体端点类型，不新增中转对象、分块缓存或尺寸状态。
+- ArchHFNL x86_64 / GCC16.2.1 / Qt6.12 / libpcap1.11，Release严格警告构建通过，CTest 4/4：原转发56项、CLI19项、进程退出/信号故障32项保持通过，新增DMA转发测试。
+- 新测试使用生产 Cdl5DmaHandle、Bridge 和 PcapHandle，底层 DMA/MMIO/Pcap 为替身。500×128 和450×128帧分别2001/1801包，1024字节块及32字节尾块全部原样到达；UDP发送都在主线程，关闭后无新增发送。桥接器不解析帧头/meta。
+- ARM64 已有SDK容器 / GCC12 / QtCore6.8.3 / 板卡glibc sysroot 构建新bridge和测试通过；tests/build-arm.sh记录入口。板卡 /run/bridge-dma-tests-arm64 实际运行退出0，模拟两种尺寸完整转发通过。
+- 新bridge仅临时复制到 /run/bridge-arm64，--help 和 --list-serialdevice 运行退出0，帮助已列出CDL5。没有执行真实DMA run、安装新服务或替换 /root/apps/bridge/bin/bridge。
+- SIGINT/SIGTERM → signalfd/QSocketNotifier → app.exec返回 → 先关闭设备Handle、再关闭UDP 的链路保持；DMA自身负责帧边界取消及超时恢复，不新增Bridge轮询或保存排空。
+- 原生验证前期采用cdl5源码覆盖联调；随后删除该覆盖，从相邻 Git 仓库经 FetchContent 重新取出完整固定提交 `53eb8c1ba3b7ed00adfc0e674c047674d14e7a23`，核对实际HEAD，构建及CTest 4/4再次通过。该仓经本地Git bundle同步，尚未发布远端。ARM构建从相同源码挂载，不宣称远端拉取或真实采集成功。
+- 证据：ArchHFNL ~/.cache/bridge-fixed-20261029/{configure-dma-pinned.log,build-dma-pinned.log,build/Testing/Temporary/LastTest.log}，~/.cache/bridge-dma-arm-20261031/build-final.log；本机cdl5Device/out/arm-board-final.txt。现有板卡服务、镜像、FPGA和eMMC均未更改。
+
 ## 2026-10-30：ARM 激光器桥接服务与 Windows UDP 实测
 
 - 复用前轮已安装的 ARM64 bridge：SHA256 6e799f2160b606d8b2a6b02265e781a27655406496784422870cf8e5cde68c39，二进制未改。板卡内核 5.4.0-xilinx-v2020.1、PID 1 为 SysVinit，使用 SysV 启停脚本，未套用 systemd。locale 已由前轮系统镜像设置为 C.UTF-8，服务继续读取 /etc/default/locale。

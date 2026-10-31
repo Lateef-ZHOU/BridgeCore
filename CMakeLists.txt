@@ -22,6 +22,12 @@ FetchContent_Declare(whls
     GIT_TAG 1d5e1a3cdfbab3e7d06c983aa242ce71de6f2333
     SOURCE_SUBDIR include)
 FetchContent_MakeAvailable(lidar_handle_core sqaf whls)
+set(CDL5_WITH_DMA ON CACHE BOOL "DMA acquisition endpoint" FORCE)
+# Local residence pending publication; the shared DmaProxy ABI is supplied explicitly.
+FetchContent_Declare(cdl5
+    GIT_REPOSITORY "${CMAKE_CURRENT_SOURCE_DIR}/../cdl5Device"
+    GIT_TAG 53eb8c1ba3b7ed00adfc0e674c047674d14e7a23)
+FetchContent_MakeAvailable(cdl5)
 find_package(Boost 1.88 QUIET CONFIG COMPONENTS circular_buffer)
 if(NOT TARGET Boost::circular_buffer)
     set(BOOST_INCLUDE_LIBRARIES circular_buffer)
@@ -35,7 +41,7 @@ add_library(bridge_protocols STATIC
     "${whls_SOURCE_DIR}/include/Rayshining/LaserHandle.h")
 target_include_directories(bridge_protocols PUBLIC
     "${sqaf_SOURCE_DIR}/include" "${whls_SOURCE_DIR}/include" src)
-target_link_libraries(bridge_protocols PUBLIC Lidar::Serial Lidar::Pcap Boost::circular_buffer)
+target_link_libraries(bridge_protocols PUBLIC Lidar::Serial Lidar::Pcap Lidar::Cdl5Dma Boost::circular_buffer)
 target_compile_definitions(bridge_protocols PUBLIC QT_NO_KEYWORDS)
 target_compile_options(bridge_protocols PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_executable(bridge src/main.cpp)
