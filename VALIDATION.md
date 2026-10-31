@@ -1,5 +1,11 @@
 # 验证记录
 
+## 2026-10-31：公开仓库与远端依赖验证（用户定）
+
+- 用户授权创建公开 BridgeCore/cdl5Device 仓库，保留现有许可标记，整体许可后续整理。Bridge 只将两处相邻本地 Git 地址改为 HTTPS，激光器仍固定 1d5e1a3cdfbab3e7d06c983aa242ce71de6f2333，CDL5 仍固定 53eb8c1ba3b7ed00adfc0e674c047674d14e7a23；Handle/收发/线程/退出/服务配置不变。
+- ArchHFNL 使用原独立构建目录重新配置，两项依赖实际 origin 均为 GitHub，HEAD 与声明一致，源码覆盖为空。严格警告 Release 构建通过，CTest 4/4 通过；测试使用替身，不操作实物。本次未重新构建 ARM 或替换板端程序/镜像。
+- 证据：build-linux-validation/configure-publish.log、build-publish.log、test-publish.log。DmaProxy 仍由现有显式目录提供，未复制 ABI 或声明它已发布。
+
 ## 2026-10-31：独立业务 IP 与双端抓包对照（用户定）
 
 - 两路桥接改为板端 192.168.100.100、Windows 192.168.100.200；激光器端口 55100、CDL5 55200 保持。系统地址仍为板端 192.168.1.11、Windows 192.168.1.102，网卡/MAC/MTU/卸载设置未变，也未向系统网卡添加新地址。
