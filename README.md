@@ -69,9 +69,9 @@ UDP 一个数据报对应 Handle 一次 send；串口完整校验帧或 DMA Hand
 |---|---|---|
 | whlsDevice | 地址 2 + 命令 1 + 脉宽号 1 + 长度 2 + 数据 N | 相同主体格式 |
 | sqafDevice | cmd1、cmd2、data1、data2，共 4 字节 | 当前 PelcoDHandle 交付的完整 7 字节帧 |
-| cdl5Device | 8字节：小端0x354c4443 + uint32累积秒数；1..13开始，0取消 | FPGA原帧，32字节记录对齐，最多1024字节/包，尾包实际长度 |
+| cdl5Device | 8字节：小端0x354c4443 + uint32累积秒数；1..16开始，0取消（实际周期计数须≤65535） | FPGA原帧，32字节记录对齐，最多1024字节/包，尾包实际长度 |
 
-CDL5 帧长和触发周期由 Handle 读取 FPGA 活动寄存器；4 kHz 的 500×128 与5 kHz 的450×128共用此实现，Bridge 不保存尺寸、不拆记录、不解析 meta。三路 FP32 的解析和 double 保存归桌面官邸。取消/退出先通知 Handle 工作线程停采，等待当前帧停止或超时恢复后再释放资源；无需 Bridge 增加轮询或保存排空。细节见 cdl5Device/docs/acquisition.md。
+CDL5 帧长和触发周期由 Handle 读取 FPGA 活动寄存器；4 kHz/Profile 9 的 500×128、5 kHz/Profile 8 的 450×128（五 lane）及10 kHz/Profile 7 的240×240（六 lane）共用此实现，Bridge 不保存尺寸、不拆记录、不解析 meta。三路 FP32 的解析和 double 保存归桌面官邸。取消/退出先通知 Handle 工作线程停采，等待当前帧停止或超时恢复后再释放资源；无需 Bridge 增加轮询或保存排空。各规格秒数上限分别为16、13、6；P7/P8均交付1800个1024字节块和32字节尾块，P9交付2000个1024字节块和32字节尾块。细节见 cdl5Device/docs/acquisition.md。
 
 激光器地址和长度保持大端，数据区不改字节序。LaserHandle 为下行补 WHLS、CRC16 和 0x55；上行检查后移除这层封套。**不要向 UDP 发送完整 WHLS 串口帧**。视强下行由 PelcoDHandle 补帧头、固定设备地址和校验和，上行接口本轮未改。
 

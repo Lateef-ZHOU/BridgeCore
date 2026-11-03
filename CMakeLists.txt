@@ -10,23 +10,22 @@ set(HANDLECORE_WITH_SERIAL ON CACHE BOOL "Serial transport" FORCE)
 set(HANDLECORE_WITH_PCAP ON CACHE BOOL "Ethernet UDP transport" FORCE)
 FetchContent_Declare(lidar_handle_core
     GIT_REPOSITORY https://github.com/Lateef-ZHOU/HandleCore.git
-    GIT_TAG 3470a1d9f3826f4a666b0e53c29c001f0901fbbd)
+    GIT_TAG 113523f3a40ad2dc7c417d01326688b5bd79a51b)
 # Only use each residence's protocol headers, not its UI/business build.
 FetchContent_Declare(sqaf
     GIT_REPOSITORY https://github.com/Lateef-ZHOU/SqafDevice.git
-    GIT_TAG 9f2e4fdfbcaee661c60ec17330a736596a6dac71
+    GIT_TAG 60a4ebfad0a4c84cff5aca01594e0879fe77b186
     SOURCE_SUBDIR include)
 FetchContent_Declare(whls
-    # Keep the verified body-TX revision; transport semantics do not change on publication.
     GIT_REPOSITORY https://github.com/Lateef-ZHOU/RayshiningDevice.git
-    GIT_TAG 1d5e1a3cdfbab3e7d06c983aa242ce71de6f2333
+    GIT_TAG 4da0ff311a7915fc3ac54f0905588e019a69d0fc
     SOURCE_SUBDIR include)
 FetchContent_MakeAvailable(lidar_handle_core sqaf whls)
 set(CDL5_WITH_DMA ON CACHE BOOL "DMA acquisition endpoint" FORCE)
 # The shared DmaProxy ABI is supplied explicitly, independently of the residence checkout.
 FetchContent_Declare(cdl5
     GIT_REPOSITORY https://github.com/Lateef-ZHOU/cdl5Device.git
-    GIT_TAG 53eb8c1ba3b7ed00adfc0e674c047674d14e7a23)
+    GIT_TAG 00bee6b26bdd9aa5531dc8271e67e194d0e6c3cc)
 FetchContent_MakeAvailable(cdl5)
 find_package(Boost 1.88 QUIET CONFIG COMPONENTS circular_buffer)
 if(NOT TARGET Boost::circular_buffer)

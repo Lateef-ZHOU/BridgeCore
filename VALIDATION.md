@@ -1,3 +1,11 @@
+## 2026-11-03：三规格 DMA 接入与 ARM64 验证
+
+- cdl5Device 固定 00bee6b26bdd9aa5531dc8271e67e194d0e6c3cc；HandleCore 113523f、SqafDevice 60a4ebf、RayshiningDevice 4da0ff3，均由全新 Linux 构建目录从 GitHub 获取并核对完整 HEAD。Boost 沿用 SHA256 固定的既有源码缓存。共享 DMA ABI 显式引用原 DmaProxy。
+- ArchHFNL / GCC 16.2.1 / Qt Core 6.8.3 / libserialport 0.1.2 / libpcap 1.11.0，Release -Werror 构建及 CTest 4/4 通过：双向转发、4/5/10k模拟DMA完整帧、CLI、SIGINT/SIGTERM与失败退出。未改变生产 Bridge 转发代码、排队方式或关闭顺序。
+- 既有PetaLinux兼容SDK交叉构建成功（Qt6.8.3、GCC12、ARM64，glibc符号要求保持2.17），在板上运行模拟串口/Pcap的56项转发验证，以及三规格 DMA→Bridge→Pcap 整帧比较验证，均通过；三个生产枚举命令正常，UTF-8无警告。模拟测试不访问真实DMA或串口设备。
+- 板卡仍为5kHz活动逻辑；本轮软件支持10kHz并不等于已刷入或完成10kHz硬件采集。部署与重启另记实测结果。
+- 证据：远端 ~/bridge-profiles-20261103/logs，固定依赖在其build/_deps；本地 build-profiles/board-test.log 及 ARM64 验证程序。
+
 # 验证记录
 
 ## 2026-10-31：公开仓库与远端依赖验证（用户定）

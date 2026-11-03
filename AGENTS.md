@@ -1,5 +1,7 @@
 # BridgeCore 维护入口
 
+2026-11-03 用户定：依赖 cdl5Device 00bee6b，DMA 接入兼容4/5/10 kHz（P9/P8/P7），Profile7校验六lane、240×240、三ADC；Bridge仍只转发1024字节对齐块，既有命令、信号退出和关闭顺序不变。同步固定HandleCore及两串口协议到ResourcePhase兼容版本。Linux远端拉取构建/CTest 4/4、ARM64交叉构建、板上模拟收发和三项枚举通过；真实10kHz采集须等FPGA刷入后验证。板端部署记录见VALIDATION。
+
 2026-10-31 发布用户定：创建公开仓库 https://github.com/Lateef-ZHOU/BridgeCore 并推送全部现有修改；保留现有许可标记，整体许可后续整理。激光器与 CDL5 的 FetchContent 地址改为公开 GitHub，仍固定原已验证提交；DmaProxy 共享头继续显式提供。发布不改变运行逻辑或更新板端程序/镜像。
 
 2026-10-31 最新用户定：两路业务地址改为板端 192.168.100.100、Windows 192.168.100.200，端口/网卡/MAC 保持，系统管理地址不变。已备份并仅更新 root 镜像两份配置、重启服务，未重启板卡。22 帧双端抓包证明新地址仍合并，完整帧字节一致；具体统计和备份见 VALIDATION。未改 Bridge/Handle 代码，不推送。

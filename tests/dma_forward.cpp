@@ -14,7 +14,7 @@ int main(int argc,char **argv)
 {
     DmaFixture fixture;
     QCoreApplication app(argc,argv);
-    for(int gates:{500,450}) {
+    for(int gates:{500,450,240}) {
         prepare(gates);FakePcap::reset();
         bool ok=false;
         PcapParams p;
@@ -38,10 +38,10 @@ int main(int argc,char **argv)
             check(packet.thread==app.thread(),"DMA to UDP sends only on owner thread");
             combined+=UDPDatagram(packet.bytes).bodyView();
         }
-        check(combined==source,"whole 4k/5k frame survives queued bridge unchanged");
+        check(combined==source,"whole 4k/5k/10k frame survives queued bridge unchanged");
         const auto count=FakePcap::sent().size();
         bridge.reset();app.processEvents();
         check(session->closed&&FakePcap::sent().size()==count,"closed context cannot send more UDP");
     }
-    std::cout<<"PASS real DMA Handle -> queued Bridge -> Pcap send, 4k/5k mocked hardware\n";
+    std::cout<<"PASS real DMA Handle -> queued Bridge -> Pcap send, 4k/5k/10k mocked hardware\n";
 }

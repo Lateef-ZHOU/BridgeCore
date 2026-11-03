@@ -22,7 +22,7 @@
 
 激光器固定 `/dev/serial/by-path/platform-xhci-hcd.0.auto-usb-0:1.4:1.0-port0`，启动时解析到实际 tty；不依赖 ttyUSB 编号、不探测其他串口。设备换插口需修改配置。激光器目标 MAC 通过 ARP 取得。
 
-CDL5 的 `DESTINATION_MAC=14:4f:d7:c7:d0:8c` 是本轮 Windows“以太网 6”的实际 MAC。更换上位机网卡时需一起修改。DMA 突发强制指定 MAC，避免现有 ARP 等待槽只留最后一包而丢掉首帧；Bridge 不增加分片头，按 Handle 的 1024 字节/32 字节对齐块直接转发。帧长由 FPGA 活动寄存器取得，桥接服务不固化 4 kHz/5 kHz 尺寸。
+CDL5 的 `DESTINATION_MAC=14:4f:d7:c7:d0:8c` 是本轮 Windows“以太网 6”的实际 MAC。更换上位机网卡时需一起修改。DMA 突发强制指定 MAC，避免现有 ARP 等待槽只留最后一包而丢掉首帧；Bridge 不增加分片头，按 Handle 的 1024 字节/32 字节对齐块直接转发。帧长由 FPGA 活动寄存器取得，桥接服务不固化 4 kHz/5 kHz/10 kHz 尺寸。
 
 ## 操作
 
@@ -67,3 +67,9 @@ tail -n 50 /run/cdl5-bridge.log
 本轮备份目录为 SD 根目录的 `codex_bridge_dma_backup_20261031`，保存更新前 image.ub、root-home.tar.gz、各自 SHA256 和 RESTORE.txt。SSH 不通时可断电取 SD，通过读卡器恢复这四个文件，再上电；不要改 BOOT.BIN、boot.scr 或 eMMC。之前的备份全部保留。
 
 2026-10-31 地址对照已部署并持久化；备份在 `/media/sd-mmcblk1p1/codex_bridge_ip100_backup_20261031_193845`，恢复其中的 root-home.tar.gz 与校验文件后重启可回到旧业务地址（客户端默认值需配套恢复）。22 个完整帧双端比对相同，但新地址仍发生 7168 字节等合并，地址改动没有消除该现象。详细统计见 VALIDATION。
+
+## 三规格程序升级（2026-11-03）
+
+同一 bridge 支持 Profile9/500×128、Profile8/450×128、Profile7/240×240，三路ADC；前两者五lane，后者六lane。服务参数与UDP端口不随FPGA频率改变，DMA Handle按活动寄存器校验布局。上位机须选匹配的官邸。
+
+升级仅替换 root-home.tar.gz 内的 root/apps/bridge/bin/bridge，保留其余文件及元数据；先备份旧归档和校验文件，再验证新归档与上传校验。停止两路服务后更换运行程序，验证再持久化并重启。恢复时将备份归档和校验文件放回SD根目录。保留原V52初始化程序及开机顺序，不使用交付包中更旧的V44替换；内核、代理驱动、系统运行库和eMMC不随此次升级修改。
