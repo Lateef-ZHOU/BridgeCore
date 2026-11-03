@@ -1,3 +1,12 @@
+## 2026-11-03：root 镜像替换与重启验收
+
+- 运行程序来自已推送 BridgeCore 8578484及其固定依赖。ARM64可执行文件 SHA256：`48a67a11a5e71874a0d4a68732596efb7efe6c3e5927a5ac05ecd7560bd2a1ae`；SD root归档 SHA256：`388a84be50f17587840bb4fcde19c5314dd1670a3be03f5ebd25f4243a01cf89`。
+- 更新前在SD备份 `/media/sd-mmcblk1p1/codex_bridge_profiles_backup_20261103_150805`，包含旧root-home.tar.gz及校验文件、旧bridge程序和RESTORE.txt；本地副本保存在build-profiles。新旧归档逐项比对，仅root/apps/bridge/bin/bridge字节/长度变化，其余文件和元数据完全保留。服务脚本、业务地址、串口路径、初始化程序均未改。
+- 先停止两路服务，替换运行程序、验证枚举和启动后再替换SD归档。已执行正常系统重启，boot_id从 `7f086349-02ab-48c1-abf2-075826cd5d3d` 变为 `9cb921bd-df21-4cae-bb86-d77231ab5239`。重启后laser-bridge PID850、cdl5-bridge PID892，日志均显示Device/UDP连接成功，程序与root归档哈希一致，三个枚举命令正常且无locale提示。
+- `/dev/cdl5_dma_proxy`存在，cdl5_dma_proxy模块自动加载；内核仍为5.4.0-xilinx-v2020.1。image.ub、BOOT.BIN、boot.scr、代理模块和V52初始化程序SHA256均与更新前一致。未操作eMMC科学数据、未烧写FPGA、未发采集或激光控制命令。
+- 本次重启验证的是软件持久化与服务恢复。活动FPGA尚未更换为10kHz；10kHz真实采集和Windows端到端联测留待用户刷入。启动命令最初因非登录SSH缺少/sbin而未执行，随后使用/sbin/reboot完成；记录不将首次失败当作重启。
+- 证据：build-profiles/deploy.log、deployment.json、reboot.log、旧归档/程序及新归档。
+
 ## 2026-11-03：三规格 DMA 接入与 ARM64 验证
 
 - cdl5Device 固定 00bee6b26bdd9aa5531dc8271e67e194d0e6c3cc；HandleCore 113523f、SqafDevice 60a4ebf、RayshiningDevice 4da0ff3，均由全新 Linux 构建目录从 GitHub 获取并核对完整 HEAD。Boost 沿用 SHA256 固定的既有源码缓存。共享 DMA ABI 显式引用原 DmaProxy。

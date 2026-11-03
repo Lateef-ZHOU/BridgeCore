@@ -73,3 +73,5 @@ tail -n 50 /run/cdl5-bridge.log
 同一 bridge 支持 Profile9/500×128、Profile8/450×128、Profile7/240×240，三路ADC；前两者五lane，后者六lane。服务参数与UDP端口不随FPGA频率改变，DMA Handle按活动寄存器校验布局。上位机须选匹配的官邸。
 
 升级仅替换 root-home.tar.gz 内的 root/apps/bridge/bin/bridge，保留其余文件及元数据；先备份旧归档和校验文件，再验证新归档与上传校验。停止两路服务后更换运行程序，验证再持久化并重启。恢复时将备份归档和校验文件放回SD根目录。保留原V52初始化程序及开机顺序，不使用交付包中更旧的V44替换；内核、代理驱动、系统运行库和eMMC不随此次升级修改。
+
+本次更新已完成并经正常重启验证：两服务自动启动，DMA模块加载，新bridge从root归档恢复。回退备份为 `/media/sd-mmcblk1p1/codex_bridge_profiles_backup_20261103_150805`；恢复其中两份root归档/校验文件到SD根目录即可，不恢复其他层。10kHz真实采集尚待FPGA刷入，当前验证不包含其硬件数据链。
